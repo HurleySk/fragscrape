@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import httpClient from '../proxy/httpClient';
+import browserClient from '../proxy/browserClient';
 import logger from '../utils/logger';
 import { Perfume, SearchResult } from '../types';
 
@@ -15,43 +15,76 @@ class ParfumoScraper {
       logger.info(`Searching Parfumo for: ${query}`);
 
       // Add delay to be respectful
-      await httpClient.delay(1000 + Math.random() * 1000);
+      await browserClient.delay(1000 + Math.random() * 1000);
 
-      const html = await httpClient.get(searchUrl);
+      const html = await browserClient.getPageContent(searchUrl);
       const $ = cheerio.load(html);
 
       const results: SearchResult[] = [];
+      const seenUrls = new Set<string>();
 
-      // Parse search results
-      $('.perfume-box, .search-result-item').each((index, element) => {
-        if (index >= limit) return false;
+      // Parse results using actual Parfumo structure
+      // Each result appears to have a container with name/brand/image children
+      $('.name').each((index, element) => {
+        if (results.length >= limit) return false;
 
-        const $elem = $(element);
+        const $nameElement = $(element);
+        const $nameLink = $nameElement.find('a');
+        const href = $nameLink.attr('href');
 
-        // Extract perfume details from search results
-        const nameElement = $elem.find('.perfume-name, h3 a, .name');
-        const brandElement = $elem.find('.perfume-brand, .brand');
-        const ratingElement = $elem.find('.rating, .perfume-rating');
-        const imageElement = $elem.find('img');
+        if (!href) return;
 
-        const name = nameElement.text().trim();
-        const brand = brandElement.text().trim();
-        const href = nameElement.attr('href') || $elem.find('a').first().attr('href');
+        const fullUrl = href.startsWith('http') ? href : `${this.baseUrl}${href}`;
 
-        if (name && brand && href) {
+        // Skip duplicates
+        if (seenUrls.has(fullUrl)) return;
+        seenUrls.add(fullUrl);
+
+        // Parse brand and name from URL structure: /Perfumes/{BRAND}/{PERFUME_NAME}
+        const urlParts = fullUrl.split('/');
+        if (urlParts.length < 6) return;
+
+        // Extract brand from URL (index 4)
+        const brand = urlParts[4].replace(/_/g, ' ');
+
+        // Extract perfume name from URL (index 5) and clean it up
+        let name = urlParts[5].replace(/_/g, ' ');
+
+        // Extract year from name if present (e.g., "Dior Homme Intense 2011")
+        let year: number | undefined;
+        const yearMatch = name.match(/\b(19|20)\d{2}\b/);
+        if (yearMatch) {
+          year = parseInt(yearMatch[0]);
+          // Remove year from name
+          name = name.replace(/\s*\d{4}\s*$/, '').trim();
+        }
+
+        // Remove common concentration types from the name for cleaner display
+        name = name.replace(/\s+(Eau de Parfum|Eau de Toilette|Parfum|Cologne|Extrait)$/i, '').trim();
+
+        // Capitalize first letter of each word in name
+        name = name.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+
+        // Get parent container for additional info
+        const $container = $nameElement.closest('div');
+
+        // Find image
+        const $imageElement = $container.find('img').first();
+        const imageUrl = this.extractImageUrl($imageElement.attr('src') || $imageElement.attr('data-src'));
+
+        // Find rating if available
+        const $ratingElement = $container.find('.rating, .stars, [class*="rating"]');
+        const rating = this.parseRating($ratingElement.text());
+
+        if (name && brand) {
           const result: SearchResult = {
             name,
             brand,
-            url: href.startsWith('http') ? href : `${this.baseUrl}${href}`,
-            rating: this.parseRating(ratingElement.text()),
-            imageUrl: this.extractImageUrl(imageElement.attr('src') || imageElement.attr('data-src')),
+            url: fullUrl,
+            year,
+            rating,
+            imageUrl,
           };
-
-          // Try to extract year from name or other elements
-          const yearMatch = name.match(/\b(19|20)\d{2}\b/);
-          if (yearMatch) {
-            result.year = parseInt(yearMatch[0]);
-          }
 
           results.push(result);
         }
@@ -74,27 +107,44 @@ class ParfumoScraper {
       logger.info(`Fetching perfume details from: ${fullUrl}`);
 
       // Add delay to be respectful
-      await httpClient.delay(1500 + Math.random() * 1500);
+      await browserClient.delay(1500 + Math.random() * 1500);
 
-      const html = await httpClient.get(fullUrl);
+      const html = await browserClient.getPageContent(fullUrl);
       const $ = cheerio.load(html);
 
-      // Extract basic information
-      const name = this.extractText($, '.perfume-name, h1, .name-main');
-      const brand = this.extractText($, '.perfume-brand, .brand-name, .brand');
-      const concentration = this.extractText($, '.concentration, .perfume-concentration');
-      const gender = this.extractGender($);
-      const description = this.extractText($, '.description, .perfume-description, .main-description');
-
-      // Extract year
+      // Extract brand and name from URL (most reliable method)
+      const urlParts = fullUrl.split('/');
+      let brand = '';
+      let name = '';
       let year: number | undefined;
-      const yearText = this.extractText($, '.year, .release-year');
-      if (yearText) {
-        const yearMatch = yearText.match(/\b(19|20)\d{2}\b/);
+
+      if (urlParts.length >= 6) {
+        brand = urlParts[4].replace(/_/g, ' ');
+        name = urlParts[5].replace(/_/g, ' ');
+
+        // Extract year from name
+        const yearMatch = name.match(/\b(19|20)\d{2}\b/);
         if (yearMatch) {
           year = parseInt(yearMatch[0]);
+          name = name.replace(/\s*\d{4}\s*$/, '').trim();
         }
+
+        // Remove concentration types
+        name = name.replace(/\s+(Eau de Parfum|Eau de Toilette|Parfum|Cologne|Extrait)$/i, '').trim();
+
+        // Capitalize
+        name = name.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
       }
+
+      // Debug: Log page title and sample classes to understand structure
+      const pageTitle = $('title').text();
+      logger.debug(`Detail page title: ${pageTitle}`);
+      logger.debug(`Sample classes: ${$('[class]').slice(0, 15).map((_, el) => $(el).attr('class')).get().join(', ')}`);
+
+      // Extract other information using selectors (may need updating based on actual HTML)
+      const concentration = this.extractText($, '.concentration, .perfume-concentration, .type');
+      const gender = this.extractGender($);
+      const description = this.extractText($, '.description, .perfume-description, .main-description, p.desc');
 
       // Extract notes
       const notes = this.extractNotes($);
@@ -153,26 +203,66 @@ class ParfumoScraper {
       const brandUrl = `${this.baseUrl}/Perfumes/${encodeURIComponent(brand)}?page=${page}`;
       logger.info(`Fetching perfumes for brand: ${brand} (page ${page})`);
 
-      await httpClient.delay(1000 + Math.random() * 1000);
+      await browserClient.delay(1000 + Math.random() * 1000);
 
-      const html = await httpClient.get(brandUrl);
+      const html = await browserClient.getPageContent(brandUrl);
       const $ = cheerio.load(html);
 
       const results: SearchResult[] = [];
+      const seenUrls = new Set<string>();
 
-      $('.perfume-item, .brand-perfume').each((_, element) => {
-        const $elem = $(element);
-        const name = this.extractText($elem, '.name, .perfume-name');
-        const href = $elem.find('a').first().attr('href');
+      // Use same approach as search - find .name elements and parse from URLs
+      $('.name').each((_, element) => {
+        const $nameElement = $(element);
+        const $nameLink = $nameElement.find('a');
+        const href = $nameLink.attr('href');
 
-        if (name && href) {
-          results.push({
-            name,
-            brand,
-            url: href.startsWith('http') ? href : `${this.baseUrl}${href}`,
-            rating: this.parseRating($elem.find('.rating').text()),
-          });
+        if (!href) return;
+
+        const fullUrl = href.startsWith('http') ? href : `${this.baseUrl}${href}`;
+
+        // Skip duplicates
+        if (seenUrls.has(fullUrl)) return;
+        seenUrls.add(fullUrl);
+
+        // Parse from URL: /Perfumes/{BRAND}/{PERFUME_NAME}
+        const urlParts = fullUrl.split('/');
+        if (urlParts.length < 6) return;
+
+        const extractedBrand = urlParts[4].replace(/_/g, ' ');
+        let name = urlParts[5].replace(/_/g, ' ');
+
+        // Extract year if present
+        let year: number | undefined;
+        const yearMatch = name.match(/\b(19|20)\d{2}\b/);
+        if (yearMatch) {
+          year = parseInt(yearMatch[0]);
+          name = name.replace(/\s*\d{4}\s*$/, '').trim();
         }
+
+        // Remove concentration types
+        name = name.replace(/\s+(Eau de Parfum|Eau de Toilette|Parfum|Cologne|Extrait)$/i, '').trim();
+
+        // Capitalize
+        name = name.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+
+        // Try to find rating
+        const $container = $nameElement.closest('div');
+        const $ratingElement = $container.find('.rating, .stars, [class*="rating"]');
+        const rating = this.parseRating($ratingElement.text());
+
+        // Find image
+        const $imageElement = $container.find('img').first();
+        const imageUrl = this.extractImageUrl($imageElement.attr('src') || $imageElement.attr('data-src'));
+
+        results.push({
+          name,
+          brand: extractedBrand,
+          url: fullUrl,
+          year,
+          rating,
+          imageUrl,
+        });
       });
 
       logger.info(`Found ${results.length} perfumes for brand: ${brand}`);
@@ -186,7 +276,10 @@ class ParfumoScraper {
   // Helper methods
 
   private extractText($: cheerio.CheerioAPI | cheerio.Cheerio<any>, selector: string): string {
-    const elem = $ === cheerio ? $(selector) : $.find(selector);
+    // Check if $ has a 'find' method (Cheerio element) or if it's the API itself
+    const elem = typeof ($ as any).find === 'function' && !('root' in $)
+      ? ($ as cheerio.Cheerio<any>).find(selector)
+      : ($ as cheerio.CheerioAPI)(selector);
     return elem.first().text().trim();
   }
 

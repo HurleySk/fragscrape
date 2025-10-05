@@ -11,6 +11,7 @@ const configSchema = z.object({
     password: z.string().optional(),
     proxyEndpoint: z.string(),
     proxyPort: z.number(),
+    proxyCountry: z.string().default('us'), // Country code for geo-targeting (e.g., 'us', 'uk', 'de')
   }).refine(
     (data) => data.apiKey || (data.username && data.password),
     { message: "Either apiKey or username/password must be provided for Decodo authentication" }
@@ -45,6 +46,7 @@ const config: Config = {
     password: process.env.DECODO_PASSWORD,
     proxyEndpoint: process.env.DECODO_PROXY_ENDPOINT || 'gate.decodo.com',
     proxyPort: parseInt(process.env.DECODO_PROXY_PORT || '7000', 10),
+    proxyCountry: process.env.DECODO_PROXY_COUNTRY || 'us',
   },
   api: {
     port: parseInt(process.env.PORT || '3000', 10),

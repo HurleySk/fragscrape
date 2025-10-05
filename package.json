@@ -29,6 +29,9 @@
     "express-rate-limit": "^7.1.5",
     "helmet": "^7.1.0",
     "playwright": "^1.40.1",
+    "puppeteer": "^24.23.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "sqlite3": "^5.1.7",
     "winston": "^3.11.0",
     "zod": "^3.22.4"
