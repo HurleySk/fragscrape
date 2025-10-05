@@ -1,6 +1,7 @@
 import decodoClient from './decodoClient';
 import logger from '../utils/logger';
 import config from '../config/config';
+import database from '../database/database';
 import { DecodoSubUser, ProxyConfig } from '../types';
 import { EventEmitter } from 'events';
 
@@ -72,7 +73,7 @@ class ProxyManager extends EventEmitter {
    */
   private async checkSubUserUsage(subUser: DecodoSubUser): Promise<boolean> {
     try {
-      const traffic = await decodoClient.getSubUserTraffic(subUser.username);
+      const traffic = await decodoClient.getSubUserTraffic(subUser.id);
 
       // Update our local record
       subUser.trafficUsed = traffic.traffic_used;
@@ -134,6 +135,9 @@ class ProxyManager extends EventEmitter {
       this.subUsers.set(subUser.id, subUser);
       this.currentSubUser = subUser;
 
+      // Save to database for persistence
+      await database.saveSubUser(subUser);
+
       logger.info(`Created new sub-user: ${username}`);
       return subUser;
     } catch (error) {
@@ -143,16 +147,38 @@ class ProxyManager extends EventEmitter {
   }
 
   /**
-   * Load existing sub-users from Decodo
+   * Load existing sub-users from database and Decodo
    */
   async loadSubUsers(): Promise<void> {
     try {
-      const subUsers = await decodoClient.getSubUsers();
+      // First, load sub-users from our database (where we have passwords stored)
+      const dbSubUsers = await database.getSubUsers();
+      for (const su of dbSubUsers) {
+        if (su.password) { // Only add if we have the password
+          this.subUsers.set(su.id, su);
+          logger.info(`Loaded sub-user from database: ${su.username} (status: ${su.status})`);
+        }
+      }
 
-      for (const su of subUsers) {
-        // We don't have passwords for existing sub-users, so we'll need to skip them
-        // or implement a password reset mechanism
-        logger.info(`Found existing sub-user: ${su.username} (status: ${su.status})`);
+      // Try to sync with Decodo API (optional, may fail with API key auth)
+      try {
+        const apiSubUsers = await decodoClient.getSubUsers();
+        for (const su of apiSubUsers) {
+          // Update existing sub-user info if we have it
+          const existing = Array.from(this.subUsers.values()).find(s => s.username === su.username);
+          if (existing) {
+            existing.status = su.status;
+            existing.trafficUsed = su.traffic_used || 0;
+            existing.trafficLimit = su.traffic_limit || existing.trafficLimit;
+            logger.info(`Updated sub-user from API: ${su.username} (status: ${su.status})`);
+          } else {
+            // New sub-user from API that we don't have password for
+            logger.info(`Found sub-user in API without password: ${su.username} (status: ${su.status})`);
+          }
+        }
+      } catch (apiError) {
+        // API sync failed, but that's OK - we have our local database
+        logger.debug('Could not sync with Decodo API, using local database only');
       }
     } catch (error) {
       logger.error('Failed to load sub-users:', error);

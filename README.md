@@ -15,7 +15,7 @@ A sophisticated web scraping API for perfume and fragrance data from Parfumo and
 ## Prerequisites
 
 - Node.js v18+ and npm
-- Decodo account with API access
+- Decodo account with API access (API key or username/password)
 - SQLite3
 
 ## Installation
@@ -36,7 +36,15 @@ npm install
 cp .env.example .env
 ```
 
-4. Configure your Decodo credentials in `.env`:
+4. Configure your Decodo authentication in `.env`:
+
+**Option 1: API Key (Recommended)**
+```env
+# Get from Decodo dashboard > Settings > API Keys
+DECODO_API_KEY=your_api_key_here
+```
+
+**Option 2: Username/Password**
 ```env
 DECODO_USERNAME=your_decodo_username
 DECODO_PASSWORD=your_decodo_password
@@ -137,6 +145,29 @@ POST /api/proxy/rotate
 GET /api/proxy/subusers
 ```
 
+## Authentication Methods
+
+### API Key Authentication (Recommended)
+
+1. Log into your [Decodo dashboard](https://dashboard.decodo.com)
+2. Navigate to Settings > API Keys
+3. Create a new API key and save it immediately (you won't see it again)
+4. Set `DECODO_API_KEY` in your `.env` file
+
+Benefits:
+- Simpler setup - no auth endpoint required
+- Better security - can be rotated easily
+- Direct authentication with every request
+
+### Username/Password Authentication
+
+Traditional method using Decodo account credentials:
+1. Set `DECODO_USERNAME` and `DECODO_PASSWORD` in `.env`
+2. The API will authenticate and obtain a session token
+3. Token is used for subsequent requests
+
+Note: Either API key OR username/password must be provided.
+
 ## Monitoring via API
 
 Monitor your proxy status and sub-users using these API endpoints:
@@ -167,6 +198,9 @@ All configuration is done through environment variables:
 | `PORT` | API server port | 3000 |
 | `NODE_ENV` | Environment mode | development |
 | `DECODO_API_URL` | Decodo API endpoint | https://api.decodo.com/v1 |
+| `DECODO_API_KEY` | API key for authentication (recommended) | - |
+| `DECODO_USERNAME` | Username for legacy auth | - |
+| `DECODO_PASSWORD` | Password for legacy auth | - |
 | `DECODO_PROXY_ENDPOINT` | Proxy server endpoint | gate.decodo.com |
 | `DECODO_PROXY_PORT` | Proxy server port | 7000 |
 | `DATABASE_PATH` | SQLite database path | ./data/fragscrape.db |

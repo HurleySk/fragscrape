@@ -6,11 +6,15 @@ dotenv.config();
 const configSchema = z.object({
   decodo: z.object({
     apiUrl: z.string().url(),
-    username: z.string(),
-    password: z.string(),
+    apiKey: z.string().optional(),
+    username: z.string().optional(),
+    password: z.string().optional(),
     proxyEndpoint: z.string(),
     proxyPort: z.number(),
-  }),
+  }).refine(
+    (data) => data.apiKey || (data.username && data.password),
+    { message: "Either apiKey or username/password must be provided for Decodo authentication" }
+  ),
   api: z.object({
     port: z.number(),
     nodeEnv: z.enum(['development', 'production', 'test']),
@@ -36,8 +40,9 @@ export type Config = z.infer<typeof configSchema>;
 const config: Config = {
   decodo: {
     apiUrl: process.env.DECODO_API_URL || 'https://api.decodo.com/v1',
-    username: process.env.DECODO_USERNAME || '',
-    password: process.env.DECODO_PASSWORD || '',
+    apiKey: process.env.DECODO_API_KEY,
+    username: process.env.DECODO_USERNAME,
+    password: process.env.DECODO_PASSWORD,
     proxyEndpoint: process.env.DECODO_PROXY_ENDPOINT || 'gate.decodo.com',
     proxyPort: parseInt(process.env.DECODO_PROXY_PORT || '7000', 10),
   },

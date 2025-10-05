@@ -2,6 +2,52 @@
 
 Complete examples for using the Fragscrape API with curl, JavaScript, and Python.
 
+## Decodo Authentication Configuration
+
+### Using API Key (Recommended)
+
+```bash
+# .env file
+DECODO_API_KEY=your_api_key_from_dashboard
+```
+
+Benefits:
+- Direct authentication with every request
+- No need to manage session tokens
+- Easy to rotate from Decodo dashboard
+- Better for production deployments
+
+### Using Username/Password
+
+```bash
+# .env file
+DECODO_USERNAME=your_username
+DECODO_PASSWORD=your_password
+```
+
+Use cases:
+- Legacy systems already using username/password
+- Development environments
+- When API key generation is restricted
+
+### Migration from Username/Password to API Key
+
+1. Log into [Decodo dashboard](https://dashboard.decodo.com)
+2. Go to Settings > API Keys
+3. Create and save your API key
+4. Update your `.env` file:
+   ```bash
+   # Comment out or remove old credentials
+   # DECODO_USERNAME=old_username
+   # DECODO_PASSWORD=old_password
+
+   # Add new API key
+   DECODO_API_KEY=your_new_api_key
+   ```
+5. Restart your application
+
+The system will automatically detect and use the API key when available.
+
 ## Proxy Management
 
 ### Monitor Proxy Status

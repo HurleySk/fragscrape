@@ -42,12 +42,15 @@ app.use('/api/proxy', proxyRoutes);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
+// Global server variable
+let server: any;
+
 // Graceful shutdown
 const gracefulShutdown = async (signal: string) => {
   logger.info(`Received ${signal}, shutting down gracefully...`);
 
   // Stop accepting new requests
-  server.close(async () => {
+  server?.close(async () => {
     try {
       // Clean up resources
       proxyManager.stopMonitoring();
@@ -105,7 +108,7 @@ const startServer = async () => {
 
     // Start server
     const port = config.api.port;
-    app.listen(port, () => {
+    server = app.listen(port, () => {
       logger.info(`🚀 Fragscrape API server running on port ${port}`);
       console.log(`
 ╔══════════════════════════════════════════════════╗
@@ -154,5 +157,4 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // Start the server
-const server = app.listen(config.api.port);
 startServer();

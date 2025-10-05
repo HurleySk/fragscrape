@@ -1,6 +1,7 @@
 export interface DecodoCredentials {
-  username: string;
-  password: string;
+  apiKey?: string;
+  username?: string;
+  password?: string;
 }
 
 export interface DecodoSubUser {
@@ -21,16 +22,17 @@ export interface DecodoAuthResponse {
 }
 
 export interface DecodoSubUserResponse {
-  id: string;
+  id: string | number;
   username: string;
   status: string;
   created_at: string;
   traffic_limit: number;
+  traffic_limit_bytes?: number; // v2 API field
+  traffic_bytes?: number; // v2 API field (traffic used)
   service_type: string;
 }
 
 export interface DecodoTrafficResponse {
-  username: string;
   traffic_used: number;
   traffic_limit: number;
 }

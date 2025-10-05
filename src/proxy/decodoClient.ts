@@ -12,14 +12,29 @@ class DecodoClient {
   private apiClient: AxiosInstance;
   private authToken: string | null = null;
   private userId: string | null = null;
+  private usingApiKey: boolean = false;
 
   constructor() {
+    const headers: any = {
+      'Content-Type': 'application/json',
+    };
+
+    // If API key is provided, set it immediately
+    if (config.decodo.apiKey) {
+      headers['Authorization'] = config.decodo.apiKey;
+      this.usingApiKey = true;
+      logger.info('Decodo client configured with API key authentication');
+    }
+
+    // API key authentication uses v2, username/password uses v1
+    const baseURL = this.usingApiKey
+      ? 'https://api.decodo.com/v2'
+      : config.decodo.apiUrl;
+
     this.apiClient = axios.create({
-      baseURL: config.decodo.apiUrl,
+      baseURL,
       timeout: 10000,
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
     });
   }
 
@@ -27,6 +42,17 @@ class DecodoClient {
    * Authenticate with Decodo API
    */
   async authenticate(): Promise<void> {
+    // Skip if using API key authentication
+    if (this.usingApiKey) {
+      logger.debug('Using API key authentication, skipping auth endpoint');
+      return;
+    }
+
+    // Ensure username and password are provided for legacy auth
+    if (!config.decodo.username || !config.decodo.password) {
+      throw new Error('Username and password required when not using API key');
+    }
+
     try {
       const response = await this.apiClient.post<DecodoAuthResponse>('/auth', {
         username: config.decodo.username,
@@ -39,7 +65,7 @@ class DecodoClient {
       // Set auth token for future requests
       this.apiClient.defaults.headers.common['Authorization'] = `Bearer ${this.authToken}`;
 
-      logger.info('Successfully authenticated with Decodo API');
+      logger.info('Successfully authenticated with Decodo API using username/password');
     } catch (error) {
       logger.error('Failed to authenticate with Decodo API:', error);
       throw new Error('Decodo authentication failed');
@@ -50,6 +76,12 @@ class DecodoClient {
    * Ensure we're authenticated before making requests
    */
   private async ensureAuthenticated(): Promise<void> {
+    // If using API key, we're always authenticated
+    if (this.usingApiKey) {
+      return;
+    }
+
+    // For username/password auth, check if we have a token
     if (!this.authToken || !this.userId) {
       await this.authenticate();
     }
@@ -62,9 +94,9 @@ class DecodoClient {
     await this.ensureAuthenticated();
 
     try {
-      const response = await this.apiClient.get<DecodoSubUserResponse[]>(
-        `/users/${this.userId}/sub-users`
-      );
+      // API key authentication uses v2 /sub-users endpoint
+      const url = this.usingApiKey ? '/sub-users' : `/users/${this.userId}/sub-users`;
+      const response = await this.apiClient.get<DecodoSubUserResponse[]>(url);
       return response.data;
     } catch (error) {
       logger.error('Failed to get sub-users:', error);
@@ -79,8 +111,10 @@ class DecodoClient {
     await this.ensureAuthenticated();
 
     try {
+      // API key authentication uses v2 /sub-users endpoint
+      const url = this.usingApiKey ? '/sub-users' : `/users/${this.userId}/sub-users`;
       const response = await this.apiClient.post<DecodoSubUserResponse>(
-        `/users/${this.userId}/sub-users`,
+        url,
         {
           username,
           password,
@@ -104,7 +138,8 @@ class DecodoClient {
     await this.ensureAuthenticated();
 
     try {
-      await this.apiClient.put(`/users/${this.userId}/sub-users/${subUserId}`, {
+      const url = this.usingApiKey ? `/sub-users/${subUserId}` : `/users/${this.userId}/sub-users/${subUserId}`;
+      await this.apiClient.put(url, {
         traffic_limit: trafficLimit,
         ...(password && { password }),
       });
@@ -119,16 +154,32 @@ class DecodoClient {
   /**
    * Get traffic usage for a sub-user
    */
-  async getSubUserTraffic(username: string): Promise<DecodoTrafficResponse> {
+  async getSubUserTraffic(subUserId: string): Promise<DecodoTrafficResponse> {
     await this.ensureAuthenticated();
 
     try {
-      const response = await this.apiClient.get<DecodoTrafficResponse>(
-        `/users/${this.userId}/sub-users/${username}/traffic`
-      );
+      // For API key auth (v2), traffic is included in the sub-users list
+      if (this.usingApiKey) {
+        const subUsers = await this.getSubUsers();
+        const subUser = subUsers.find(su => su.id === subUserId || su.username === subUserId);
+
+        if (!subUser) {
+          throw new Error(`Sub-user ${subUserId} not found`);
+        }
+
+        // Return traffic data in the expected format
+        return {
+          traffic_used: subUser.traffic_bytes || 0,
+          traffic_limit: subUser.traffic_limit_bytes || 0,
+        };
+      }
+
+      // For username/password auth (v1), use the dedicated traffic endpoint
+      const url = `/users/${this.userId}/sub-users/${subUserId}/traffic`;
+      const response = await this.apiClient.get<DecodoTrafficResponse>(url);
       return response.data;
     } catch (error) {
-      logger.error(`Failed to get traffic for sub-user ${username}:`, error);
+      logger.error(`Failed to get traffic for sub-user ${subUserId}:`, error);
       throw error;
     }
   }
@@ -140,7 +191,8 @@ class DecodoClient {
     await this.ensureAuthenticated();
 
     try {
-      await this.apiClient.delete(`/users/${this.userId}/sub-users/${subUserId}`);
+      const url = this.usingApiKey ? `/sub-users/${subUserId}` : `/users/${this.userId}/sub-users/${subUserId}`;
+      await this.apiClient.delete(url);
       logger.info(`Deleted sub-user: ${subUserId}`);
     } catch (error) {
       logger.error('Failed to delete sub-user:', error);
