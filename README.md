@@ -1,0 +1,260 @@
+# Fragscrape API
+
+A sophisticated web scraping API for perfume and fragrance data from Parfumo and Fragrantica, built with TypeScript, Express, and utilizing Decodo's rotating residential proxies for reliable data extraction.
+
+## Features
+
+- **Smart Proxy Management**: Automatic rotation of Decodo residential proxies with sub-user management
+- **Cost Control**: Built-in 1GB traffic limits per sub-user with automatic warnings
+- **Data Caching**: SQLite database for efficient caching and reducing API calls
+- **Rate Limiting**: Configurable rate limiting to respect target websites
+- **RESTful API**: Clean, well-documented API endpoints with comprehensive proxy monitoring
+- **Error Handling**: Comprehensive error handling and logging
+- **Real-time Monitoring**: Full proxy and sub-user status via API endpoints
+
+## Prerequisites
+
+- Node.js v18+ and npm
+- Decodo account with API access
+- SQLite3
+
+## Installation
+
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/fragscrape.git
+cd fragscrape
+```
+
+2. Install dependencies:
+```bash
+npm install
+```
+
+3. Create environment file:
+```bash
+cp .env.example .env
+```
+
+4. Configure your Decodo credentials in `.env`:
+```env
+DECODO_USERNAME=your_decodo_username
+DECODO_PASSWORD=your_decodo_password
+```
+
+## Usage
+
+### Development Mode
+
+```bash
+npm run dev
+```
+
+### Production Build
+
+```bash
+npm run build
+npm start
+```
+
+### First Time Setup
+
+1. Start the server
+2. Create your first Decodo sub-user:
+```bash
+curl -X POST http://localhost:3000/api/proxy/create-subuser
+```
+3. Test the proxy connection:
+```bash
+curl http://localhost:3000/api/proxy/test
+```
+
+### Quick Start Examples
+
+```bash
+# Search for perfumes
+curl "http://localhost:3000/api/search?q=Aventus&limit=10"
+
+# Get specific perfume details
+curl "http://localhost:3000/api/perfume/Creed/Aventus"
+
+# Check current proxy status and usage
+curl http://localhost:3000/api/proxy/status | jq .
+
+# Monitor all sub-users
+curl http://localhost:3000/api/proxy/subusers | jq .
+```
+
+## API Endpoints
+
+### Perfume Endpoints
+
+#### Search Perfumes
+```
+GET /api/search?q={query}&limit=20&cache=true
+```
+
+#### Get Perfume Details
+```
+GET /api/perfume/{brand}/{name}?year=2020
+```
+
+#### Get Perfume by URL
+```
+POST /api/perfume/by-url
+Body: { "url": "https://www.parfumo.com/..." }
+```
+
+#### Get Perfumes by Brand
+```
+GET /api/brand/{brand}?page=1
+```
+
+### Proxy Management Endpoints
+
+#### Get Proxy Status
+```
+GET /api/proxy/status
+```
+
+#### Create Sub-User
+```
+POST /api/proxy/create-subuser
+```
+
+#### Test Connection
+```
+GET /api/proxy/test
+```
+
+#### Rotate Proxy
+```
+POST /api/proxy/rotate
+```
+
+#### List Sub-Users
+```
+GET /api/proxy/subusers
+```
+
+## Monitoring via API
+
+Monitor your proxy status and sub-users using these API endpoints:
+
+```bash
+# Get comprehensive proxy status and all sub-users
+curl http://localhost:3000/api/proxy/status
+
+# List sub-users with detailed usage
+curl http://localhost:3000/api/proxy/subusers
+
+# Test proxy connection
+curl http://localhost:3000/api/proxy/test
+
+# Create new sub-user (1GB limit)
+curl -X POST http://localhost:3000/api/proxy/create-subuser
+
+# Force rotate to different proxy
+curl -X POST http://localhost:3000/api/proxy/rotate
+```
+
+## Configuration
+
+All configuration is done through environment variables:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | API server port | 3000 |
+| `NODE_ENV` | Environment mode | development |
+| `DECODO_API_URL` | Decodo API endpoint | https://api.decodo.com/v1 |
+| `DECODO_PROXY_ENDPOINT` | Proxy server endpoint | gate.decodo.com |
+| `DECODO_PROXY_PORT` | Proxy server port | 7000 |
+| `DATABASE_PATH` | SQLite database path | ./data/fragscrape.db |
+| `LOG_LEVEL` | Logging level | info |
+| `SUB_USER_TRAFFIC_LIMIT_GB` | Traffic limit per sub-user | 1 |
+| `SUB_USER_WARNING_THRESHOLD_MB` | Warning threshold | 900 |
+
+## Project Structure
+
+```
+fragscrape/
+├── src/
+│   ├── api/              # API routes and middleware
+│   │   ├── routes/       # Route handlers
+│   │   └── middleware/   # Express middleware
+│   ├── scrapers/         # Web scraping logic
+│   ├── proxy/            # Proxy management
+│   ├── database/         # Database layer
+│   ├── types/            # TypeScript type definitions
+│   ├── utils/            # Utility functions
+│   └── config/           # Configuration
+├── tests/                # Test files
+├── logs/                 # Application logs
+└── data/                 # SQLite database
+```
+
+## Sub-User Management
+
+The API automatically manages Decodo sub-users to control costs:
+
+1. **Automatic Creation**: Prompts for new sub-user when needed
+2. **Usage Monitoring**: Tracks traffic usage in real-time
+3. **Warning System**: Alerts at 900MB usage (configurable)
+4. **Rotation**: Automatically switches when limit approached
+5. **Cost Control**: Each sub-user limited to 1GB
+
+## Error Handling
+
+- Comprehensive error logging with Winston
+- Graceful error recovery
+- Automatic proxy rotation on failures
+- Request retry with exponential backoff
+
+## Testing
+
+Run tests:
+```bash
+npm test
+```
+
+## Security Considerations
+
+- Never expose Decodo credentials
+- Use environment variables for sensitive data
+- Implement API key authentication for production
+- Enable HTTPS in production
+- Regularly rotate sub-users
+
+## Troubleshooting
+
+### No Active Sub-Users
+Create a new sub-user via the API:
+```bash
+curl -X POST http://localhost:3000/api/proxy/create-subuser
+```
+
+### Proxy Connection Failed
+1. Check Decodo credentials in `.env`
+2. Verify sub-user has available traffic
+3. Test connection: `GET /api/proxy/test`
+
+### Cache Issues
+Clear expired cache entries:
+- Automatic cleanup runs hourly
+- Manual cleanup: Delete `data/fragscrape.db`
+
+## Contributing
+
+1. Fork the repository
+2. Create feature branch
+3. Commit changes
+4. Push to branch
+5. Open pull request
+
+## License
+
+MIT
+
+## Disclaimer
+
+This tool is for educational and research purposes only. Always respect website terms of service and robots.txt files. Use responsibly and ethically.
