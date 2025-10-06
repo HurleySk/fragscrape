@@ -11,7 +11,8 @@ class ParfumoScraper {
    */
   async search(query: string, limit: number = 20): Promise<SearchResult[]> {
     try {
-      const searchUrl = `${this.baseUrl}/search?q=${encodeURIComponent(query)}`;
+      // Use the correct Parfumo search endpoint
+      const searchUrl = `${this.baseUrl}/s_perfumes_x.php?in=1&order=&filter=${encodeURIComponent(query)}`;
       logger.info(`Searching Parfumo for: ${query}`);
 
       // Add delay to be respectful
@@ -20,79 +21,128 @@ class ParfumoScraper {
       const html = await browserClient.getPageContent(searchUrl);
       const $ = cheerio.load(html);
 
-      const results: SearchResult[] = [];
+      // Use a type that includes relevance for sorting
+      type ResultWithScore = SearchResult & { relevance: number };
+      const results: ResultWithScore[] = [];
       const seenUrls = new Set<string>();
 
-      // Parse results using actual Parfumo structure
-      // Each result appears to have a container with name/brand/image children
-      $('.name').each((_index, element) => {
-        if (results.length >= limit) return false;
+      // Try multiple selector strategies for better accuracy
+      // 1. Look for perfume links in main content area (more specific)
+      // 2. Fall back to general .name selector if needed
+      const selectors = [
+        '#main .name a',           // Main content area with .name class
+        '.search-results .name a', // Search results container
+        '.perfume-item .name a',   // Perfume item containers
+        '#content .name a',        // Content area
+        '.name a',                 // General fallback
+      ];
 
-        const $nameElement = $(element);
-        const $nameLink = $nameElement.find('a');
-        const href = $nameLink.attr('href');
+      let foundResults = false;
+      for (const selector of selectors) {
+        const $links = $(selector);
 
-        if (!href) return;
+        if ($links.length > 0) {
+          logger.debug(`Using selector: ${selector}, found ${$links.length} potential results`);
+          foundResults = true;
 
-        const fullUrl = href.startsWith('http') ? href : `${this.baseUrl}${href}`;
+          $links.each((_index, element) => {
+            if (results.length >= limit) return false;
 
-        // Skip duplicates
-        if (seenUrls.has(fullUrl)) return;
-        seenUrls.add(fullUrl);
+            const $link = $(element);
+            const href = $link.attr('href');
 
-        // Parse brand and name from URL structure: /Perfumes/{BRAND}/{PERFUME_NAME}
-        const urlParts = fullUrl.split('/');
-        if (urlParts.length < 6) return;
+            if (!href) return;
 
-        // Extract brand from URL (index 4)
-        const brand = urlParts[4].replace(/_/g, ' ');
+            const fullUrl = href.startsWith('http') ? href : `${this.baseUrl}${href}`;
 
-        // Extract perfume name from URL (index 5) and clean it up
-        let name = urlParts[5].replace(/_/g, ' ');
+            // CRITICAL: Validate this is actually a perfume URL
+            if (!this.isValidPerfumeUrl(fullUrl)) {
+              logger.debug(`Skipping invalid URL pattern: ${fullUrl}`);
+              return;
+            }
 
-        // Extract year from name if present (e.g., "Dior Homme Intense 2011")
-        let year: number | undefined;
-        const yearMatch = name.match(/\b(19|20)\d{2}\b/);
-        if (yearMatch) {
-          year = parseInt(yearMatch[0]);
-          // Remove year from name
-          name = name.replace(/\s*\d{4}\s*$/, '').trim();
+            // Skip duplicates
+            if (seenUrls.has(fullUrl)) return;
+            seenUrls.add(fullUrl);
+
+            // Parse brand and name from URL structure: /Perfumes/{BRAND}/{PERFUME_NAME}
+            const urlParts = fullUrl.split('/');
+
+            // Extract brand from URL (index 4)
+            const brand = urlParts[4].replace(/_/g, ' ');
+
+            // Extract perfume name from URL (index 5) and clean it up
+            let name = urlParts[5].replace(/_/g, ' ');
+
+            // Extract year from name if present (e.g., "Dior Homme Intense 2011")
+            let year: number | undefined;
+            const yearMatch = name.match(/\b(19|20)\d{2}\b/);
+            if (yearMatch) {
+              year = parseInt(yearMatch[0]);
+              // Remove year from name
+              name = name.replace(/\s*\d{4}\s*$/, '').trim();
+            }
+
+            // Remove common concentration types from the name for cleaner display
+            name = name.replace(/\s+(Eau de Parfum|Eau de Toilette|Parfum|Cologne|Extrait)$/i, '').trim();
+
+            // Capitalize first letter of each word in name
+            name = name.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+
+            // Calculate relevance score
+            const relevanceScore = this.calculateRelevance(query, brand, name);
+
+            // Filter out very low relevance results (score < 5)
+            if (relevanceScore < 5) {
+              logger.debug(`Filtering out low relevance result: ${brand} - ${name} (score: ${relevanceScore})`);
+              return;
+            }
+
+            // Get parent container for additional info
+            const $container = $link.closest('div, li, article');
+
+            // Find image
+            const $imageElement = $container.find('img').first();
+            const imageUrl = this.extractImageUrl($imageElement.attr('src') || $imageElement.attr('data-src'));
+
+            // Find rating if available
+            const $ratingElement = $container.find('.rating, .stars, [class*="rating"]');
+            const rating = this.parseRating($ratingElement.text());
+
+            if (name && brand) {
+              const result: ResultWithScore = {
+                name,
+                brand,
+                url: fullUrl,
+                year,
+                rating,
+                imageUrl,
+                relevance: relevanceScore, // Track for sorting
+              };
+
+              results.push(result);
+              logger.debug(`Added result: ${brand} - ${name} (relevance: ${relevanceScore})`);
+            }
+            return;
+          });
+
+          // If we found results with this selector, don't try others
+          if (results.length > 0) break;
         }
+      }
 
-        // Remove common concentration types from the name for cleaner display
-        name = name.replace(/\s+(Eau de Parfum|Eau de Toilette|Parfum|Cologne|Extrait)$/i, '').trim();
+      if (!foundResults) {
+        logger.warn(`No elements found with any search selector for query: ${query}`);
+      }
 
-        // Capitalize first letter of each word in name
-        name = name.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+      // Sort results by relevance score (highest first)
+      results.sort((a, b) => b.relevance - a.relevance);
 
-        // Get parent container for additional info
-        const $container = $nameElement.closest('div');
+      // Remove relevance field before returning (it's not part of SearchResult interface)
+      const cleanedResults: SearchResult[] = results.map(({ relevance, ...rest }) => rest);
 
-        // Find image
-        const $imageElement = $container.find('img').first();
-        const imageUrl = this.extractImageUrl($imageElement.attr('src') || $imageElement.attr('data-src'));
-
-        // Find rating if available
-        const $ratingElement = $container.find('.rating, .stars, [class*="rating"]');
-        const rating = this.parseRating($ratingElement.text());
-
-        if (name && brand) {
-          const result: SearchResult = {
-            name,
-            brand,
-            url: fullUrl,
-            year,
-            rating,
-            imageUrl,
-          };
-
-          results.push(result);
-        }
-        return;
-      });
-
-      logger.info(`Found ${results.length} search results for: ${query}`);
-      return results;
+      logger.info(`Found ${cleanedResults.length} valid search results for: ${query} (sorted by relevance)`);
+      return cleanedResults;
     } catch (error) {
       logger.error(`Search failed for query "${query}":`, error);
       throw error;
@@ -266,6 +316,77 @@ class ParfumoScraper {
   }
 
   // Helper methods
+
+  /**
+   * Validates that a URL follows the expected Parfumo perfume URL pattern
+   * Expected: /Perfumes/{brand}/{name} or https://www.parfumo.com/Perfumes/{brand}/{name}
+   */
+  private isValidPerfumeUrl(url: string): boolean {
+    if (!url) return false;
+
+    // Extract path from full URL if needed
+    const path = url.startsWith('http') ? new URL(url).pathname : url;
+
+    // Check if path starts with /Perfumes/ and has at least brand and name
+    const perfumePattern = /^\/Perfumes\/[^/]+\/[^/]+/;
+    return perfumePattern.test(path);
+  }
+
+  /**
+   * Calculate relevance score for a perfume result based on how well it matches the search query
+   * Returns a score from 0-100, higher is more relevant
+   */
+  private calculateRelevance(query: string, brand: string, name: string): number {
+    const queryLower = query.toLowerCase().trim();
+    const brandLower = brand.toLowerCase().trim();
+    const nameLower = name.toLowerCase().trim();
+    const combined = `${brandLower} ${nameLower}`;
+
+    let score = 0;
+
+    // Exact match (brand + name) = 100 points
+    if (combined === queryLower) {
+      return 100;
+    }
+
+    // Exact brand match = 50 points
+    if (brandLower === queryLower) {
+      score += 50;
+    }
+
+    // Exact name match = 50 points
+    if (nameLower === queryLower) {
+      score += 50;
+    }
+
+    // Query words that appear in brand or name
+    const queryWords = queryLower.split(/\s+/).filter(w => w.length > 2);
+    const combinedWords = combined.split(/\s+/);
+
+    queryWords.forEach(queryWord => {
+      // Brand contains query word = 10 points per word
+      if (brandLower.includes(queryWord)) {
+        score += 10;
+      }
+
+      // Name contains query word = 15 points per word (name is more specific)
+      if (nameLower.includes(queryWord)) {
+        score += 15;
+      }
+
+      // Combined starts with query word = 20 points (strong signal)
+      if (combinedWords.some(w => w.startsWith(queryWord))) {
+        score += 20;
+      }
+    });
+
+    // Bonus: Combined contains full query as substring = 30 points
+    if (combined.includes(queryLower)) {
+      score += 30;
+    }
+
+    return Math.min(score, 100); // Cap at 100
+  }
 
   private extractText($: cheerio.CheerioAPI | cheerio.Cheerio<any>, selector: string): string {
     // Check if $ has a 'find' method (Cheerio element) or if it's the API itself

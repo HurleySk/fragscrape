@@ -28,14 +28,17 @@ router.get('/search', async (req: Request, res: Response) => {
     // Check cache first
     if (useCache) {
       const cached = await database.getCachedSearch(query);
-      if (cached) {
-        logger.info(`Returning cached results for query: ${query}`);
+      // Only use cache if it has valid results
+      if (cached && cached.length > 0) {
+        logger.info(`Returning ${cached.length} cached results for query: ${query}`);
         const response: ApiResponse<SearchResult[]> = {
           success: true,
           data: cached,
           timestamp: new Date(),
         };
         return res.json(response);
+      } else if (cached) {
+        logger.warn(`Found empty cached results for query: ${query}, will re-scrape`);
       }
     }
 
@@ -43,8 +46,14 @@ router.get('/search', async (req: Request, res: Response) => {
     logger.info(`Searching Parfumo for: ${query}`);
     const results = await parfumoScraper.search(query, limit);
 
-    // Cache the results
-    await database.saveSearchCache(query, results);
+    // Only cache results if we found valid matches
+    // Don't cache empty results or scraping failures
+    if (results && results.length > 0) {
+      await database.saveSearchCache(query, results);
+      logger.info(`Cached ${results.length} search results for: ${query}`);
+    } else {
+      logger.warn(`No valid results to cache for query: ${query}`);
+    }
 
     const response: ApiResponse<SearchResult[]> = {
       success: true,
