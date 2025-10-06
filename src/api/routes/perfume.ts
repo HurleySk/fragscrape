@@ -3,6 +3,17 @@ import parfumoScraper from '../../scrapers/parfumoScraper';
 import database from '../../database/database';
 import logger from '../../utils/logger';
 import { ApiResponse, SearchResult, Perfume } from '../../types';
+import { asyncHandler } from '../middleware/errorHandler';
+import { validate } from '../middleware/validate';
+import {
+  searchQuerySchema,
+  perfumeParamsSchema,
+  perfumeQuerySchema,
+  perfumeByUrlSchema,
+  perfumeByUrlQuerySchema,
+  brandParamsSchema,
+  brandQuerySchema,
+} from '../validation/schemas';
 
 const router = Router();
 
@@ -10,201 +21,139 @@ const router = Router();
  * Search for perfumes
  * GET /api/search?q=query&limit=20&cache=true
  */
-router.get('/search', async (req: Request, res: Response) => {
-  try {
-    const query = req.query.q as string;
-    const limit = parseInt(req.query.limit as string) || 20;
-    const useCache = req.query.cache !== 'false';
+router.get('/search', validate({ query: searchQuerySchema }), asyncHandler(async (req: Request, res: Response) => {
+  const query = req.query.q as unknown as string;
+  const limit = req.query.limit as unknown as number;
+  const useCache = req.query.cache as unknown as boolean;
 
-    if (!query) {
-      const response: ApiResponse<null> = {
-        success: false,
-        error: 'Search query is required',
+  // Check cache first
+  if (useCache) {
+    const cached = database.getCachedSearch(query);
+    // Only use cache if it has valid results
+    if (Array.isArray(cached) && cached.length > 0) {
+      logger.info(`Returning ${cached.length} cached results for query: ${query}`);
+      const response: ApiResponse<SearchResult[]> = {
+        success: true,
+        data: cached as SearchResult[],
         timestamp: new Date(),
       };
-      return res.status(400).json(response);
+      return res.json(response);
+    } else if (cached) {
+      logger.warn(`Found empty cached results for query: ${query}, will re-scrape`);
     }
-
-    // Check cache first
-    if (useCache) {
-      const cached = await database.getCachedSearch(query);
-      // Only use cache if it has valid results
-      if (cached && cached.length > 0) {
-        logger.info(`Returning ${cached.length} cached results for query: ${query}`);
-        const response: ApiResponse<SearchResult[]> = {
-          success: true,
-          data: cached,
-          timestamp: new Date(),
-        };
-        return res.json(response);
-      } else if (cached) {
-        logger.warn(`Found empty cached results for query: ${query}, will re-scrape`);
-      }
-    }
-
-    // Scrape from Parfumo
-    logger.info(`Searching Parfumo for: ${query}`);
-    const results = await parfumoScraper.search(query, limit);
-
-    // Only cache results if we found valid matches
-    // Don't cache empty results or scraping failures
-    if (results && results.length > 0) {
-      await database.saveSearchCache(query, results);
-      logger.info(`Cached ${results.length} search results for: ${query}`);
-    } else {
-      logger.warn(`No valid results to cache for query: ${query}`);
-    }
-
-    const response: ApiResponse<SearchResult[]> = {
-      success: true,
-      data: results,
-      timestamp: new Date(),
-    };
-
-    return res.json(response);
-  } catch (error: any) {
-    logger.error('Search endpoint error:', error);
-
-    const response: ApiResponse<null> = {
-      success: false,
-      error: error.message || 'An error occurred during search',
-      timestamp: new Date(),
-    };
-
-    return res.status(500).json(response);
   }
-});
+
+  // Scrape from Parfumo
+  logger.info(`Searching Parfumo for: ${query}`);
+  const results = await parfumoScraper.search(query, limit);
+
+  // Only cache results if we found valid matches
+  // Don't cache empty results or scraping failures
+  if (results && results.length > 0) {
+    database.saveSearchCache(query, results);
+    logger.info(`Cached ${results.length} search results for: ${query}`);
+  } else {
+    logger.warn(`No valid results to cache for query: ${query}`);
+  }
+
+  const response: ApiResponse<SearchResult[]> = {
+    success: true,
+    data: results,
+    timestamp: new Date(),
+  };
+
+  return res.json(response);
+}));
 
 /**
  * Get perfume details by brand and name
  * GET /api/perfume/:brand/:name?year=2020&cache=true
  */
-router.get('/perfume/:brand/:name', async (req: Request, res: Response) => {
-  try {
-    const { brand, name } = req.params;
-    const year = req.query.year ? parseInt(req.query.year as string) : undefined;
-    const useCache = req.query.cache !== 'false';
+router.get('/perfume/:brand/:name', validate({ params: perfumeParamsSchema, query: perfumeQuerySchema }), asyncHandler(async (req: Request, res: Response) => {
+  const { brand, name } = req.params;
+  const year = req.query.year as unknown as number | undefined;
+  const useCache = req.query.cache as unknown as boolean;
 
-    // Check cache first if enabled
-    let perfume = useCache ? await database.getPerfume(brand, name, year) : null;
+  // Normalize brand/name for cache lookup (URL has underscores, DB has spaces)
+  const brandNormalized = brand.replace(/_/g, ' ');
+  const nameNormalized = name.replace(/_/g, ' ');
 
-    if (!perfume) {
-      // Build URL with proper Parfumo format (replace spaces with underscores)
-      const brandSlug = brand.replace(/\s+/g, '_');
-      const nameSlug = name.replace(/\s+/g, '_');
-      const url = `/Perfumes/${encodeURIComponent(brandSlug)}/${encodeURIComponent(nameSlug)}`;
+  // Check cache first if enabled
+  let perfume = useCache ? database.getPerfume(brandNormalized, nameNormalized, year) : null;
 
-      logger.info(`Fetching perfume: ${brand} - ${name}`);
-      perfume = await parfumoScraper.getPerfumeDetails(url);
+  if (!perfume) {
+    // Build URL with proper Parfumo format (replace spaces with underscores)
+    const brandSlug = brand.replace(/\s+/g, '_');
+    const nameSlug = name.replace(/\s+/g, '_');
+    const url = `/Perfumes/${encodeURIComponent(brandSlug)}/${encodeURIComponent(nameSlug)}`;
 
-      // Save to cache
-      await database.savePerfume(perfume);
-    } else {
-      logger.info(`Returning cached perfume: ${brand} - ${name}`);
-    }
+    logger.info(`Fetching perfume: ${brandNormalized} - ${nameNormalized}`);
+    perfume = await parfumoScraper.getPerfumeDetails(url);
 
-    const response: ApiResponse<Perfume> = {
-      success: true,
-      data: perfume,
-      timestamp: new Date(),
-    };
-
-    return res.json(response);
-  } catch (error: any) {
-    logger.error('Perfume details endpoint error:', error);
-
-    const response: ApiResponse<null> = {
-      success: false,
-      error: error.message || 'An error occurred while fetching perfume details',
-      timestamp: new Date(),
-    };
-
-    return res.status(500).json(response);
+    // Save to cache
+    database.savePerfume(perfume);
+  } else {
+    logger.info(`Returning cached perfume: ${brandNormalized} - ${nameNormalized}`);
   }
-});
+
+  const response: ApiResponse<Perfume> = {
+    success: true,
+    data: perfume,
+    timestamp: new Date(),
+  };
+
+  return res.json(response);
+}));
 
 /**
  * Get perfume details by URL
  * POST /api/perfume/by-url?cache=true
  * Body: { "url": "https://www.parfumo.com/Perfumes/Brand/Name" }
  */
-router.post('/perfume/by-url', async (req: Request, res: Response) => {
-  try {
-    const { url } = req.body;
-    const useCache = req.query.cache !== 'false';
+router.post('/perfume/by-url', validate({ body: perfumeByUrlSchema, query: perfumeByUrlQuerySchema }), asyncHandler(async (req: Request, res: Response) => {
+  const { url } = req.body;
+  const useCache = req.query.cache as unknown as boolean;
 
-    if (!url) {
-      const response: ApiResponse<null> = {
-        success: false,
-        error: 'URL is required',
-        timestamp: new Date(),
-      };
-      return res.status(400).json(response);
-    }
+  // Check cache first if enabled
+  let perfume = useCache ? database.getPerfumeByUrl(url) : null;
 
-    // Check cache first if enabled
-    let perfume = useCache ? await database.getPerfumeByUrl(url) : null;
+  if (!perfume) {
+    // Scrape the URL
+    logger.info(`Fetching perfume from URL: ${url}`);
+    perfume = await parfumoScraper.getPerfumeDetails(url);
 
-    if (!perfume) {
-      // Scrape the URL
-      logger.info(`Fetching perfume from URL: ${url}`);
-      perfume = await parfumoScraper.getPerfumeDetails(url);
-
-      // Save to cache
-      await database.savePerfume(perfume);
-    } else {
-      logger.info(`Returning cached perfume from URL: ${url}`);
-    }
-
-    const response: ApiResponse<Perfume> = {
-      success: true,
-      data: perfume,
-      timestamp: new Date(),
-    };
-
-    return res.json(response);
-  } catch (error: any) {
-    logger.error('Perfume by URL endpoint error:', error);
-
-    const response: ApiResponse<null> = {
-      success: false,
-      error: error.message || 'An error occurred while fetching perfume details',
-      timestamp: new Date(),
-    };
-
-    return res.status(500).json(response);
+    // Save to cache
+    database.savePerfume(perfume);
+  } else {
+    logger.info(`Returning cached perfume from URL: ${url}`);
   }
-});
+
+  const response: ApiResponse<Perfume> = {
+    success: true,
+    data: perfume,
+    timestamp: new Date(),
+  };
+
+  return res.json(response);
+}));
 
 /**
  * Get perfumes by brand
  * GET /api/brand/:brand?page=1
  */
-router.get('/brand/:brand', async (req: Request, res: Response) => {
-  try {
-    const { brand } = req.params;
-    const page = parseInt(req.query.page as string) || 1;
+router.get('/brand/:brand', validate({ params: brandParamsSchema, query: brandQuerySchema }), asyncHandler(async (req: Request, res: Response) => {
+  const { brand } = req.params;
+  const page = req.query.page as unknown as number;
 
-    const results = await parfumoScraper.getPerfumesByBrand(brand, page);
+  const results = await parfumoScraper.getPerfumesByBrand(brand, page);
 
-    const response: ApiResponse<SearchResult[]> = {
-      success: true,
-      data: results,
-      timestamp: new Date(),
-    };
+  const response: ApiResponse<SearchResult[]> = {
+    success: true,
+    data: results,
+    timestamp: new Date(),
+  };
 
-    return res.json(response);
-  } catch (error: any) {
-    logger.error('Brand perfumes endpoint error:', error);
-
-    const response: ApiResponse<null> = {
-      success: false,
-      error: error.message || 'An error occurred while fetching brand perfumes',
-      timestamp: new Date(),
-    };
-
-    return res.status(500).json(response);
-  }
-});
+  return res.json(response);
+}));
 
 export default router;

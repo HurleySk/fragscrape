@@ -1,15 +1,33 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import proxyManager from './proxyManager';
 import logger from '../utils/logger';
+import { randomUUID } from 'crypto';
+import { ProxyError, RateLimitError } from '../api/middleware/errorHandler';
+import { IHttpClient } from './types';
+import { retryWithBackoff } from '../utils/retry';
 
-class HttpClient {
+class HttpClient implements IHttpClient {
   private axiosInstance: AxiosInstance | null = null;
+  private sessionId: string | null = null;
+
+  /**
+   * Generate a session ID for sticky sessions (same IP across requests)
+   */
+  private generateSessionId(): string {
+    return `session_${randomUUID()}`;
+  }
 
   /**
    * Create an axios instance with proxy configuration
    */
   private async createAxiosInstance(): Promise<AxiosInstance> {
-    const proxyConfig = await proxyManager.getProxyConfig();
+    // Generate a session ID for sticky sessions if not already set
+    if (!this.sessionId) {
+      this.sessionId = this.generateSessionId();
+    }
+
+    // Get proxy config with formatted username (includes session and country)
+    const proxyConfig = await proxyManager.getProxyConfig({ sessionId: this.sessionId });
 
     const axiosConfig: AxiosRequestConfig = {
       timeout: 30000,
@@ -34,6 +52,8 @@ class HttpClient {
       },
     };
 
+    logger.info(`HTTP client created with proxy: ${proxyConfig.endpoint}:${proxyConfig.port} (session: ${this.sessionId})`);
+
     return axios.create(axiosConfig);
   }
 
@@ -52,53 +72,59 @@ class HttpClient {
    */
   async reset(): Promise<void> {
     this.axiosInstance = null;
-    logger.info('HTTP client reset - will use new proxy on next request');
+    // Reset session ID to get a new IP on next request
+    this.sessionId = null;
+    logger.info('HTTP client reset - will use new proxy and session on next request');
   }
 
   /**
-   * Perform a GET request through the proxy
+   * Perform a GET request through the proxy with retry logic
    */
   async get(url: string, config?: AxiosRequestConfig): Promise<any> {
-    const client = await this.getAxiosInstance();
+    return retryWithBackoff(async () => {
+      const client = await this.getAxiosInstance();
 
-    try {
-      logger.debug(`GET request to: ${url}`);
-      const response = await client.get(url, config);
-      return response.data;
-    } catch (error: any) {
-      if (error.response?.status === 403) {
-        logger.warn('Received 403 - possible rate limiting or IP block');
-        // Trigger proxy rotation
-        await this.reset();
-        throw new Error('Access forbidden - rotating proxy');
+      try {
+        logger.debug(`GET request to: ${url}`);
+        const response = await client.get(url, config);
+        return response.data;
+      } catch (error: any) {
+        if (error.response?.status === 403) {
+          logger.warn('Received 403 - possible rate limiting or IP block');
+          // Trigger proxy rotation
+          await this.reset();
+          throw new RateLimitError('Access forbidden - rotating proxy');
+        }
+
+        logger.error(`HTTP GET error for ${url}:`, error.message);
+        throw new ProxyError(`HTTP GET failed for ${url}`, error);
       }
-
-      logger.error(`HTTP GET error for ${url}:`, error.message);
-      throw error;
-    }
+    });
   }
 
   /**
-   * Perform a POST request through the proxy
+   * Perform a POST request through the proxy with retry logic
    */
   async post(url: string, data?: any, config?: AxiosRequestConfig): Promise<any> {
-    const client = await this.getAxiosInstance();
+    return retryWithBackoff(async () => {
+      const client = await this.getAxiosInstance();
 
-    try {
-      logger.debug(`POST request to: ${url}`);
-      const response = await client.post(url, data, config);
-      return response.data;
-    } catch (error: any) {
-      if (error.response?.status === 403) {
-        logger.warn('Received 403 - possible rate limiting or IP block');
-        // Trigger proxy rotation
-        await this.reset();
-        throw new Error('Access forbidden - rotating proxy');
+      try {
+        logger.debug(`POST request to: ${url}`);
+        const response = await client.post(url, data, config);
+        return response.data;
+      } catch (error: any) {
+        if (error.response?.status === 403) {
+          logger.warn('Received 403 - possible rate limiting or IP block');
+          // Trigger proxy rotation
+          await this.reset();
+          throw new RateLimitError('Access forbidden - rotating proxy');
+        }
+
+        logger.error(`HTTP POST error for ${url}:`, error.message);
+        throw new ProxyError(`HTTP POST failed for ${url}`, error);
       }
-
-      logger.error(`HTTP POST error for ${url}:`, error.message);
-      throw error;
-    }
+    });
   }
 
   /**

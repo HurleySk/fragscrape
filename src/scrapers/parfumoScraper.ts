@@ -1,10 +1,13 @@
 import * as cheerio from 'cheerio';
 import browserClient from '../proxy/browserClient';
 import logger from '../utils/logger';
+import config from '../config/config';
 import { Perfume, SearchResult } from '../types';
 
 class ParfumoScraper {
-  private baseUrl = 'https://www.parfumo.com';
+  private get baseUrl(): string {
+    return config.scraper.baseUrl;
+  }
 
   /**
    * Search for perfumes on Parfumo
@@ -79,23 +82,8 @@ class ParfumoScraper {
             // Extract brand from URL (index 4)
             const brand = urlParts[4].replace(/_/g, ' ');
 
-            // Extract perfume name from URL (index 5) and clean it up
-            let name = urlParts[5].replace(/_/g, ' ');
-
-            // Extract year from name if present (e.g., "Dior Homme Intense 2011")
-            let year: number | undefined;
-            const yearMatch = name.match(/\b(19|20)\d{2}\b/);
-            if (yearMatch) {
-              year = parseInt(yearMatch[0]);
-              // Remove year from name
-              name = name.replace(/\s*\d{4}\s*$/, '').trim();
-            }
-
-            // Remove common concentration types from the name for cleaner display
-            name = name.replace(/\s+(Eau de Parfum|Eau de Toilette|Parfum|Cologne|Extrait)$/i, '').trim();
-
-            // Capitalize first letter of each word in name
-            name = name.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+            // Extract and process perfume name from URL (index 5)
+            const [name, year] = this.processPerfumeName(urlParts[5]);
 
             // Calculate relevance score
             const relevanceScore = this.calculateRelevance(query, brand, name);
@@ -179,26 +167,14 @@ class ParfumoScraper {
 
       if (urlParts.length >= 6) {
         brand = urlParts[4].replace(/_/g, ' ');
-        name = urlParts[5].replace(/_/g, ' ');
-
-        // Extract year from name
-        const yearMatch = name.match(/\b(19|20)\d{2}\b/);
-        if (yearMatch) {
-          year = parseInt(yearMatch[0]);
-          name = name.replace(/\s*\d{4}\s*$/, '').trim();
-        }
-
-        // Remove concentration types
-        name = name.replace(/\s+(Eau de Parfum|Eau de Toilette|Parfum|Cologne|Extrait)$/i, '').trim();
-
-        // Capitalize
-        name = name.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+        [name, year] = this.processPerfumeName(urlParts[5]);
       }
 
 
       // Extract other information using selectors (may need updating based on actual HTML)
       const concentration = this.extractText($, '.concentration, .perfume-concentration, .type');
       const gender = this.extractGender($);
+      logger.debug(`Extracted gender for ${brand} - ${name}: ${gender || 'undefined'}`);
       const description = this.extractText($, '.description, .perfume-description, .main-description, p.desc');
 
       // Extract notes
@@ -280,21 +256,7 @@ class ParfumoScraper {
         if (urlParts.length < 6) return;
 
         const extractedBrand = urlParts[4].replace(/_/g, ' ');
-        let name = urlParts[5].replace(/_/g, ' ');
-
-        // Extract year if present
-        let year: number | undefined;
-        const yearMatch = name.match(/\b(19|20)\d{2}\b/);
-        if (yearMatch) {
-          year = parseInt(yearMatch[0]);
-          name = name.replace(/\s*\d{4}\s*$/, '').trim();
-        }
-
-        // Remove concentration types
-        name = name.replace(/\s+(Eau de Parfum|Eau de Toilette|Parfum|Cologne|Extrait)$/i, '').trim();
-
-        // Capitalize
-        name = name.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+        const [name, year] = this.processPerfumeName(urlParts[5]);
 
         // Try to find rating
         const $container = $nameElement.closest('div');
@@ -324,6 +286,46 @@ class ParfumoScraper {
   }
 
   // Helper methods
+
+  /**
+   * Extract year from perfume name if present
+   * Returns tuple of [cleanedName, year]
+   */
+  private extractYear(name: string): [string, number | undefined] {
+    const yearMatch = name.match(/\b(19|20)\d{2}\b/);
+    if (yearMatch) {
+      const year = parseInt(yearMatch[0]);
+      const cleanedName = name.replace(/\s*\d{4}\s*$/, '').trim();
+      return [cleanedName, year];
+    }
+    return [name, undefined];
+  }
+
+  /**
+   * Clean and capitalize perfume name
+   */
+  private cleanPerfumeName(name: string): string {
+    // Remove concentration types
+    let cleaned = name.replace(/\s+(Eau de Parfum|Eau de Toilette|Parfum|Cologne|Extrait)$/i, '').trim();
+
+    // Capitalize first letter of each word
+    cleaned = cleaned.split(' ').map(word =>
+      word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    ).join(' ');
+
+    return cleaned;
+  }
+
+  /**
+   * Process raw name from URL: extract year, clean, and capitalize
+   * Returns tuple of [cleanedName, year]
+   */
+  private processPerfumeName(rawName: string): [string, number | undefined] {
+    let name = rawName.replace(/_/g, ' ');
+    const [nameWithoutYear, year] = this.extractYear(name);
+    const cleanedName = this.cleanPerfumeName(nameWithoutYear);
+    return [cleanedName, year];
+  }
 
   /**
    * Validates that a URL follows the expected Parfumo perfume URL pattern
@@ -405,16 +407,46 @@ class ParfumoScraper {
   }
 
   private extractGender($: cheerio.CheerioAPI): 'male' | 'female' | 'unisex' | undefined {
-    const genderText = this.extractText($, '.gender, .perfume-gender').toLowerCase();
+    // Strategy 1: Check description text first
+    const description = this.extractText($, 'p, .description, .perfume-description, .main-description, p.desc');
 
-    if (genderText.includes('women') || genderText.includes('femme') || genderText.includes('her')) {
+    if (description) {
+      // Prioritize "for women and men" (unisex) to avoid false positives
+      if (/for (women and men|men and women|both|everyone)/i.test(description)) {
+        return 'unisex';
+      }
+      if (/for women|for her|women's perfume/i.test(description)) {
+        return 'female';
+      }
+      if (/for men|for him|men's perfume/i.test(description)) {
+        return 'male';
+      }
+    }
+
+    // Strategy 2: Check ranking/link text
+    const pageText = $('body').text();
+    if (/ranked \d+ in unisex perfume/i.test(pageText)) {
+      return 'unisex';
+    }
+    if (/ranked \d+ in (women's|women) perfume/i.test(pageText)) {
       return 'female';
     }
-    if (genderText.includes('men') || genderText.includes('homme') || genderText.includes('him')) {
+    if (/ranked \d+ in (men's|men) perfume/i.test(pageText)) {
       return 'male';
     }
-    if (genderText.includes('unisex') || genderText.includes('shared')) {
-      return 'unisex';
+
+    // Strategy 3: Legacy selector support (if Parfumo adds specific classes later)
+    const genderText = this.extractText($, '.gender, .perfume-gender').toLowerCase();
+    if (genderText) {
+      if (genderText.includes('women') || genderText.includes('femme') || genderText.includes('her')) {
+        return 'female';
+      }
+      if (genderText.includes('men') || genderText.includes('homme') || genderText.includes('him')) {
+        return 'male';
+      }
+      if (genderText.includes('unisex') || genderText.includes('shared')) {
+        return 'unisex';
+      }
     }
 
     return undefined;

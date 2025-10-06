@@ -4,20 +4,24 @@ import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import proxyManager from './proxyManager';
 import logger from '../utils/logger';
 import config from '../config/config';
+import { randomUUID } from 'crypto';
+import { ScraperError } from '../api/middleware/errorHandler';
+import { IBrowserClient } from './types';
+import { retryWithBackoff } from '../utils/retry';
 
 // Add stealth plugin to avoid detection
 puppeteerExtra.use(StealthPlugin());
 
-class BrowserClient {
+class BrowserClient implements IBrowserClient {
   private browser: Browser | null = null;
   private activePage: Page | null = null;
   private sessionId: string | null = null;
 
   /**
-   * Generate a random session ID for sticky sessions
+   * Generate a session ID for sticky sessions (same IP across requests)
    */
   private generateSessionId(): string {
-    return `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    return `session_${randomUUID()}`;
   }
 
   /**
@@ -25,24 +29,21 @@ class BrowserClient {
    */
   private async getBrowser(): Promise<Browser> {
     if (!this.browser || !this.browser.connected) {
-      const proxyConfig = await proxyManager.getProxyConfig();
-
       // Generate a session ID for sticky sessions (same IP across requests)
       if (!this.sessionId) {
         this.sessionId = this.generateSessionId();
       }
 
-      // Format username for Decodo with geo-targeting and session
-      // Format: user-{username}-country-{country}-session-{sessionId}
-      const formattedUsername = `user-${proxyConfig.username}-country-${config.decodo.proxyCountry}-session-${this.sessionId}`;
+      // Get proxy config with formatted username (includes session and country)
+      const proxyConfig = await proxyManager.getProxyConfig({ sessionId: this.sessionId });
 
       // Store credentials for page authentication
       const proxyAuth = {
-        username: formattedUsername,
+        username: proxyConfig.username,
         password: proxyConfig.password,
       };
 
-      logger.info(`Launching browser with proxy: ${proxyConfig.endpoint}:${proxyConfig.port} (country: ${config.decodo.proxyCountry})`);
+      logger.info(`Launching browser with proxy: ${proxyConfig.endpoint}:${proxyConfig.port} (session: ${this.sessionId})`);
 
       const launchOptions: any = {
         headless: true,
@@ -114,60 +115,62 @@ class BrowserClient {
   }
 
   /**
-   * Navigate to a URL and return the HTML content
+   * Navigate to a URL and return the HTML content with retry logic
    */
   async getPageContent(url: string, waitForSelector?: string): Promise<string> {
-    try {
-      const page = await this.getPage();
+    return retryWithBackoff(async () => {
+      try {
+        const page = await this.getPage();
 
-      logger.debug(`Navigating to: ${url}`);
+        logger.debug(`Navigating to: ${url}`);
 
-      // Navigate with timeout
-      await page.goto(url, {
-        waitUntil: 'networkidle2',
-        timeout: 60000,
-      });
-
-      // Optionally wait for a specific selector to ensure page is loaded
-      if (waitForSelector) {
-        await page.waitForSelector(waitForSelector, { timeout: 10000 });
-      }
-
-      // Get the HTML content
-      const html = await page.content();
-
-      // Check if we got a Cloudflare challenge page
-      const title = await page.title();
-      if (title.includes('Just a moment') || title.includes('Attention Required')) {
-        logger.warn('Detected Cloudflare challenge page, waiting for resolution...');
-
-        // Wait a bit longer for Cloudflare to resolve
-        await page.waitForNavigation({
+        // Navigate with timeout
+        await page.goto(url, {
           waitUntil: 'networkidle2',
-          timeout: 30000
-        }).catch(() => {
-          // If navigation doesn't happen, that's OK - page might have resolved in place
-          logger.debug('No navigation after Cloudflare challenge, checking content...');
+          timeout: 60000,
         });
 
-        // Get content after challenge
-        const resolvedHtml = await page.content();
-        const resolvedTitle = await page.title();
-
-        if (resolvedTitle.includes('Just a moment') || resolvedTitle.includes('Attention Required')) {
-          throw new Error('Failed to bypass Cloudflare challenge');
+        // Optionally wait for a specific selector to ensure page is loaded
+        if (waitForSelector) {
+          await page.waitForSelector(waitForSelector, { timeout: 10000 });
         }
 
-        logger.info('Successfully bypassed Cloudflare challenge');
-        return resolvedHtml;
-      }
+        // Get the HTML content
+        const html = await page.content();
 
-      logger.debug(`Successfully retrieved content from: ${url}`);
-      return html;
-    } catch (error: any) {
-      logger.error(`Browser navigation error for ${url}:`, error.message);
-      throw error;
-    }
+        // Check if we got a Cloudflare challenge page
+        const title = await page.title();
+        if (title.includes('Just a moment') || title.includes('Attention Required')) {
+          logger.warn('Detected Cloudflare challenge page, waiting for resolution...');
+
+          // Wait a bit longer for Cloudflare to resolve
+          await page.waitForNavigation({
+            waitUntil: 'networkidle2',
+            timeout: 30000
+          }).catch(() => {
+            // If navigation doesn't happen, that's OK - page might have resolved in place
+            logger.debug('No navigation after Cloudflare challenge, checking content...');
+          });
+
+          // Get content after challenge
+          const resolvedHtml = await page.content();
+          const resolvedTitle = await page.title();
+
+          if (resolvedTitle.includes('Just a moment') || resolvedTitle.includes('Attention Required')) {
+            throw new ScraperError('Failed to bypass Cloudflare challenge', url);
+          }
+
+          logger.info('Successfully bypassed Cloudflare challenge');
+          return resolvedHtml;
+        }
+
+        logger.debug(`Successfully retrieved content from: ${url}`);
+        return html;
+      } catch (error: any) {
+        logger.error(`Browser navigation error for ${url}:`, error.message);
+        throw error;
+      }
+    }, { maxRetries: 2 }); // Fewer retries for browser operations as they're more expensive
   }
 
   /**

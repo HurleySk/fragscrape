@@ -43,6 +43,13 @@ const configSchema = z.object({
   browser: z.object({
     executablePath: z.string().optional(),
   }),
+  scraper: z.object({
+    baseUrl: z.string().url().default('https://www.parfumo.com'),
+  }),
+  cache: z.object({
+    perfumeDurationSeconds: z.number().default(86400), // 24 hours
+    searchDurationSeconds: z.number().default(3600),   // 1 hour
+  }),
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -83,6 +90,13 @@ const config: Config = {
   },
   browser: {
     executablePath: process.env.BROWSER_EXECUTABLE_PATH,
+  },
+  scraper: {
+    baseUrl: process.env.SCRAPER_BASE_URL || 'https://www.parfumo.com',
+  },
+  cache: {
+    perfumeDurationSeconds: parseInt(process.env.CACHE_PERFUME_DURATION_SECONDS || '86400', 10),
+    searchDurationSeconds: parseInt(process.env.CACHE_SEARCH_DURATION_SECONDS || '3600', 10),
   },
 };
 

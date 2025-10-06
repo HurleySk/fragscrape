@@ -25,13 +25,61 @@ const limiter = rateLimit({
 
 app.use('/api', limiter);
 
-// Health check
+// Enhanced health check endpoint
 app.get('/health', (_req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date(),
-    environment: config.api.nodeEnv,
-  });
+  try {
+    // Get proxy statistics
+    const proxyStats = proxyManager.getStatistics();
+
+    // Calculate memory usage
+    const memUsage = process.memoryUsage();
+
+    // Calculate uptime
+    const uptimeSeconds = process.uptime();
+    const uptimeHours = Math.floor(uptimeSeconds / 3600);
+    const uptimeMinutes = Math.floor((uptimeSeconds % 3600) / 60);
+
+    // Database health check
+    let databaseStatus = 'ok';
+    try {
+      database.getSubUsers(); // Simple query to verify database is responsive
+    } catch (error) {
+      databaseStatus = 'error';
+    }
+
+    res.json({
+      status: databaseStatus === 'ok' ? 'healthy' : 'degraded',
+      timestamp: new Date(),
+      environment: config.api.nodeEnv,
+      uptime: {
+        seconds: Math.floor(uptimeSeconds),
+        readable: `${uptimeHours}h ${uptimeMinutes}m`,
+      },
+      database: {
+        status: databaseStatus,
+      },
+      proxy: {
+        totalSubUsers: proxyStats.totalSubUsers,
+        activeSubUsers: proxyStats.activeSubUsers,
+        exhaustedSubUsers: proxyStats.exhaustedSubUsers,
+        currentSubUser: proxyStats.currentSubUser,
+        totalTrafficUsedMB: Math.round(proxyStats.totalTrafficUsedMB),
+        totalTrafficLimitMB: Math.round(proxyStats.totalTrafficLimitMB),
+      },
+      memory: {
+        heapUsedMB: Math.round(memUsage.heapUsed / 1024 / 1024),
+        heapTotalMB: Math.round(memUsage.heapTotal / 1024 / 1024),
+        rssMB: Math.round(memUsage.rss / 1024 / 1024),
+      },
+    });
+  } catch (error) {
+    logger.error('Health check error:', error);
+    res.status(503).json({
+      status: 'error',
+      timestamp: new Date(),
+      error: 'Health check failed',
+    });
+  }
 });
 
 // API routes
@@ -50,11 +98,11 @@ const gracefulShutdown = async (signal: string) => {
   logger.info(`Received ${signal}, shutting down gracefully...`);
 
   // Stop accepting new requests
-  server?.close(async () => {
+  server?.close(() => {
     try {
       // Clean up resources
       proxyManager.stopMonitoring();
-      await database.close();
+      database.close();
 
       logger.info('Graceful shutdown complete');
       process.exit(0);
@@ -101,10 +149,10 @@ const startServer = async () => {
     const cleanupIntervalMs = config.cleanup.intervalHours * 60 * 60 * 1000;
     logger.info(`Starting cleanup interval: every ${config.cleanup.intervalHours} hours`);
 
-    setInterval(async () => {
+    setInterval(() => {
       try {
-        await database.cleanupExpiredCache();
-        await database.cleanupOldRequestLogs(config.cleanup.logRetentionDays);
+        database.cleanupExpiredCache();
+        database.cleanupOldRequestLogs(config.cleanup.logRetentionDays);
       } catch (error) {
         logger.error('Cleanup error:', error);
       }
@@ -116,7 +164,7 @@ const startServer = async () => {
       logger.info(`🚀 Fragscrape API server running on port ${port}`);
       console.log(`
 ╔══════════════════════════════════════════════════╗
-║           Fragscrape API Server v1.1.0           ║
+║           Fragscrape API Server v1.1.1           ║
 ╚══════════════════════════════════════════════════╝
 
 🚀 Server running at: http://localhost:${port}

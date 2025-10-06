@@ -4,6 +4,7 @@ import config from '../config/config';
 import database from '../database/database';
 import { DecodoSubUser, ProxyConfig } from '../types';
 import { EventEmitter } from 'events';
+import { ProxyError, NotFoundError, ValidationError } from '../api/middleware/errorHandler';
 
 class ProxyManager extends EventEmitter {
   private currentSubUser: DecodoSubUser | null = null;
@@ -17,14 +18,25 @@ class ProxyManager extends EventEmitter {
 
   /**
    * Get current proxy configuration
+   * @param options.sessionId - Optional session ID for sticky sessions (same IP across requests)
+   * @param options.includeFormatting - Whether to format username with country and session (default: true)
    */
-  async getProxyConfig(): Promise<ProxyConfig> {
+  async getProxyConfig(options?: { sessionId?: string; includeFormatting?: boolean }): Promise<ProxyConfig> {
     const subUser = await this.getCurrentSubUser();
+    const includeFormatting = options?.includeFormatting ?? true;
+
+    let username = subUser.username;
+
+    // Format username for Decodo with geo-targeting and session if requested
+    if (includeFormatting && options?.sessionId) {
+      // Format: user-{username}-country-{country}-session-{sessionId}
+      username = `user-${subUser.username}-country-${config.decodo.proxyCountry}-session-${options.sessionId}`;
+    }
 
     return {
       endpoint: config.decodo.proxyEndpoint,
       port: config.decodo.proxyPort,
-      username: subUser.username,
+      username,
       password: subUser.password,
     };
   }
@@ -57,7 +69,7 @@ class ProxyManager extends EventEmitter {
     this.emit('new-subuser-needed');
 
     // Wait for user to create new sub-user
-    throw new Error(
+    throw new ProxyError(
       'No active sub-users available. Please create a new sub-user via the /api/proxy/create-subuser endpoint.'
     );
   }
@@ -130,7 +142,7 @@ class ProxyManager extends EventEmitter {
       this.currentSubUser = subUser;
 
       // Save to database for persistence
-      await database.saveSubUser(subUser);
+      database.saveSubUser(subUser);
 
       logger.info(`Created new sub-user: ${username}`);
       return subUser;
@@ -146,10 +158,10 @@ class ProxyManager extends EventEmitter {
   async addExistingSubUser(username: string, password: string): Promise<DecodoSubUser> {
     try {
       // First, check if we already have this sub-user in our database
-      const dbSubUsers = await database.getSubUsers();
+      const dbSubUsers = database.getSubUsers();
       const existing = dbSubUsers.find(su => su.username === username);
       if (existing) {
-        throw new Error(`Sub-user ${username} already exists in local database`);
+        throw new ValidationError(`Sub-user ${username} already exists in local database`);
       }
 
       // Fetch all sub-users from Decodo API to find this one
@@ -157,7 +169,7 @@ class ProxyManager extends EventEmitter {
       const apiSubUser = apiSubUsers.find(su => su.username === username);
 
       if (!apiSubUser) {
-        throw new Error(`Sub-user ${username} not found in Decodo account`);
+        throw new NotFoundError(`Sub-user ${username}`);
       }
 
       // Get current traffic usage
@@ -192,7 +204,7 @@ class ProxyManager extends EventEmitter {
       this.subUsers.set(subUser.id, subUser);
 
       // Save to database for persistence
-      await database.saveSubUser(subUser);
+      database.saveSubUser(subUser);
 
       logger.info(`Added existing sub-user: ${username} (status: ${status})`);
       return subUser;
@@ -208,7 +220,7 @@ class ProxyManager extends EventEmitter {
   async loadSubUsers(): Promise<void> {
     try {
       // First, load sub-users from our database (where we have passwords stored)
-      const dbSubUsers = await database.getSubUsers();
+      const dbSubUsers = database.getSubUsers();
       for (const su of dbSubUsers) {
         if (su.password) { // Only add if we have the password
           this.subUsers.set(su.id, su);

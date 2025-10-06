@@ -6,6 +6,7 @@ import {
   DecodoSubUserResponse,
   DecodoTrafficResponse,
 } from '../types';
+import { ProxyError, NotFoundError, ValidationError } from '../api/middleware/errorHandler';
 
 class DecodoClient {
   private apiClient: AxiosInstance;
@@ -49,7 +50,7 @@ class DecodoClient {
 
     // Ensure username and password are provided for legacy auth
     if (!config.decodo.username || !config.decodo.password) {
-      throw new Error('Username and password required when not using API key');
+      throw new ValidationError('Username and password required when not using API key');
     }
 
     try {
@@ -67,7 +68,7 @@ class DecodoClient {
       logger.info('Successfully authenticated with Decodo API using username/password');
     } catch (error) {
       logger.error('Failed to authenticate with Decodo API:', error);
-      throw new Error('Decodo authentication failed');
+      throw new ProxyError('Decodo authentication failed', error as Error);
     }
   }
 
@@ -163,7 +164,7 @@ class DecodoClient {
         const subUser = subUsers.find(su => su.id === subUserId || su.username === subUserId);
 
         if (!subUser) {
-          throw new Error(`Sub-user ${subUserId} not found`);
+          throw new NotFoundError(`Sub-user ${subUserId}`);
         }
 
         // Return traffic data in the expected format
