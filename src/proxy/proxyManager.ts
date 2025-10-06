@@ -5,12 +5,6 @@ import database from '../database/database';
 import { DecodoSubUser, ProxyConfig } from '../types';
 import { EventEmitter } from 'events';
 
-interface ProxyManagerEvents {
-  'subuser-near-limit': (subUser: DecodoSubUser) => void;
-  'subuser-exhausted': (subUser: DecodoSubUser) => void;
-  'new-subuser-needed': () => void;
-}
-
 class ProxyManager extends EventEmitter {
   private currentSubUser: DecodoSubUser | null = null;
   private subUsers: Map<string, DecodoSubUser> = new Map();
@@ -121,7 +115,7 @@ class ProxyManager extends EventEmitter {
       const response = await decodoClient.createSubUser(username, password);
 
       const subUser: DecodoSubUser = {
-        id: response.id,
+        id: response.id.toString(),
         username: response.username,
         password: password, // Store the password we generated
         status: 'active',
@@ -167,8 +161,11 @@ class ProxyManager extends EventEmitter {
           // Update existing sub-user info if we have it
           const existing = Array.from(this.subUsers.values()).find(s => s.username === su.username);
           if (existing) {
-            existing.status = su.status;
-            existing.trafficUsed = su.traffic_used || 0;
+            // Validate and set status
+            if (su.status === 'active' || su.status === 'exhausted' || su.status === 'error') {
+              existing.status = su.status;
+            }
+            existing.trafficUsed = su.traffic_bytes || 0;
             existing.trafficLimit = su.traffic_limit || existing.trafficLimit;
             logger.info(`Updated sub-user from API: ${su.username} (status: ${su.status})`);
           } else {

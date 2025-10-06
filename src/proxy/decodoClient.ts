@@ -5,7 +5,6 @@ import {
   DecodoAuthResponse,
   DecodoSubUserResponse,
   DecodoTrafficResponse,
-  DecodoSubUser,
 } from '../types';
 
 class DecodoClient {

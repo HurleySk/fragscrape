@@ -19,9 +19,9 @@ class Database {
       this.db = new sqlite3.Database(config.database.path);
 
       // Promisify database methods
-      this.db.run = promisify(this.db.run);
-      this.db.get = promisify(this.db.get);
-      this.db.all = promisify(this.db.all);
+      (this.db.run as any) = promisify(this.db.run);
+      (this.db.get as any) = promisify(this.db.get);
+      (this.db.all as any) = promisify(this.db.all);
 
       // Create tables
       await this.createTables();

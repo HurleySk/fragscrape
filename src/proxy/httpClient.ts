@@ -1,7 +1,6 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import proxyManager from './proxyManager';
 import logger from '../utils/logger';
-import { ProxyConfig } from '../types';
 
 class HttpClient {
   private axiosInstance: AxiosInstance | null = null;

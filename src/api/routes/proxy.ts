@@ -11,7 +11,7 @@ const router = Router();
  * Get proxy status and statistics
  * GET /api/proxy/status
  */
-router.get('/status', async (req: Request, res: Response) => {
+router.get('/status', async (_req: Request, res: Response) => {
   try {
     const stats = proxyManager.getStatistics();
     const subUsers = await database.getSubUsers();
@@ -51,7 +51,7 @@ router.get('/status', async (req: Request, res: Response) => {
  * Create a new sub-user
  * POST /api/proxy/create-subuser
  */
-router.post('/create-subuser', async (req: Request, res: Response) => {
+router.post('/create-subuser', async (_req: Request, res: Response) => {
   try {
     logger.info('Creating new sub-user...');
     const subUser = await proxyManager.createSubUser();
@@ -89,7 +89,7 @@ router.post('/create-subuser', async (req: Request, res: Response) => {
  * Test proxy connection
  * GET /api/proxy/test
  */
-router.get('/test', async (req: Request, res: Response) => {
+router.get('/test', async (_req: Request, res: Response) => {
   try {
     logger.info('Testing proxy connection...');
     const success = await httpClient.testConnection();
@@ -118,7 +118,7 @@ router.get('/test', async (req: Request, res: Response) => {
  * Force rotate to a new sub-user
  * POST /api/proxy/rotate
  */
-router.post('/rotate', async (req: Request, res: Response) => {
+router.post('/rotate', async (_req: Request, res: Response) => {
   try {
     logger.info('Rotating proxy sub-user...');
 
@@ -151,7 +151,7 @@ router.post('/rotate', async (req: Request, res: Response) => {
  * Get sub-user list
  * GET /api/proxy/subusers
  */
-router.get('/subusers', async (req: Request, res: Response) => {
+router.get('/subusers', async (_req: Request, res: Response) => {
   try {
     const subUsers = await database.getSubUsers();
 

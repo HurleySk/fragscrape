@@ -52,7 +52,7 @@ router.get('/search', async (req: Request, res: Response) => {
       timestamp: new Date(),
     };
 
-    res.json(response);
+    return res.json(response);
   } catch (error: any) {
     logger.error('Search endpoint error:', error);
 
@@ -62,7 +62,7 @@ router.get('/search', async (req: Request, res: Response) => {
       timestamp: new Date(),
     };
 
-    res.status(500).json(response);
+    return res.status(500).json(response);
   }
 });
 
@@ -110,7 +110,7 @@ router.get('/perfume/:brand/:name', async (req: Request, res: Response) => {
       timestamp: new Date(),
     };
 
-    res.status(500).json(response);
+    return res.status(500).json(response);
   }
 });
 
@@ -153,7 +153,7 @@ router.post('/perfume/by-url', async (req: Request, res: Response) => {
       timestamp: new Date(),
     };
 
-    res.json(response);
+    return res.json(response);
   } catch (error: any) {
     logger.error('Perfume by URL endpoint error:', error);
 
@@ -163,7 +163,7 @@ router.post('/perfume/by-url', async (req: Request, res: Response) => {
       timestamp: new Date(),
     };
 
-    res.status(500).json(response);
+    return res.status(500).json(response);
   }
 });
 
@@ -194,7 +194,7 @@ router.get('/brand/:brand', async (req: Request, res: Response) => {
       timestamp: new Date(),
     };
 
-    res.status(500).json(response);
+    return res.status(500).json(response);
   }
 });
 

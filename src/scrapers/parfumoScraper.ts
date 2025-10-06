@@ -25,7 +25,7 @@ class ParfumoScraper {
 
       // Parse results using actual Parfumo structure
       // Each result appears to have a container with name/brand/image children
-      $('.name').each((index, element) => {
+      $('.name').each((_index, element) => {
         if (results.length >= limit) return false;
 
         const $nameElement = $(element);
@@ -88,6 +88,7 @@ class ParfumoScraper {
 
           results.push(result);
         }
+        return;
       });
 
       logger.info(`Found ${results.length} search results for: ${query}`);
@@ -409,32 +410,7 @@ class ParfumoScraper {
     return ratings;
   }
 
-  private extractRating($: cheerio.CheerioAPI): number | undefined {
-    // Parfumo uses .ratingvalue for the main rating
-    const ratingText = this.extractText($, '.ratingvalue');
-    return this.parseRating(ratingText);
-  }
-
   private parseRating(text: string): number | undefined {
-    const match = text.match(/(\d+\.?\d*)/);
-    if (match) {
-      return parseFloat(match[1]);
-    }
-    return undefined;
-  }
-
-  private extractTotalRatings($: cheerio.CheerioAPI): number | undefined {
-    // Parfumo shows ratings count in .barfiller_element (e.g., "Scent 8.47490 Ratings")
-    const text = this.extractText($, '.barfiller_element');
-    const match = text.match(/(\d+)\s*Ratings/i);
-    if (match) {
-      return parseInt(match[1]);
-    }
-    return undefined;
-  }
-
-  private extractMetric($: cheerio.CheerioAPI, selector: string): number | undefined {
-    const text = this.extractText($, selector);
     const match = text.match(/(\d+\.?\d*)/);
     if (match) {
       return parseFloat(match[1]);
@@ -453,6 +429,7 @@ class ParfumoScraper {
         imageUrl = this.extractImageUrl(src);
         return false; // Stop iteration
       }
+      return;
     });
 
     return imageUrl;
