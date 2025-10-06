@@ -114,14 +114,23 @@ curl "http://localhost:3000/api/search?q=amber&cache=false"
 
 ### Get Perfume Details
 ```bash
-# Get by brand and name
+# Get by brand and name (accepts spaces or underscores)
 curl "http://localhost:3000/api/perfume/Tom%20Ford/Black%20Orchid"
+curl "http://localhost:3000/api/perfume/Tom_Ford/Black_Orchid"
 
 # Get specific year variant
 curl "http://localhost:3000/api/perfume/Dior/Sauvage?year=2015"
 
+# Force fresh data (bypass cache)
+curl "http://localhost:3000/api/perfume/Creed/Aventus?cache=false"
+
 # Get by direct URL
 curl -X POST http://localhost:3000/api/perfume/by-url \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://www.parfumo.com/Perfumes/Creed/Aventus"}'
+
+# Get by URL without cache
+curl -X POST "http://localhost:3000/api/perfume/by-url?cache=false" \
   -H "Content-Type: application/json" \
   -d '{"url": "https://www.parfumo.com/Perfumes/Creed/Aventus"}'
 ```

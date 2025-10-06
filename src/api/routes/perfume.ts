@@ -68,19 +68,24 @@ router.get('/search', async (req: Request, res: Response) => {
 
 /**
  * Get perfume details by brand and name
- * GET /api/perfume/:brand/:name?year=2020
+ * GET /api/perfume/:brand/:name?year=2020&cache=true
  */
 router.get('/perfume/:brand/:name', async (req: Request, res: Response) => {
   try {
     const { brand, name } = req.params;
     const year = req.query.year ? parseInt(req.query.year as string) : undefined;
+    const useCache = req.query.cache !== 'false';
 
-    // Check cache first
-    let perfume = await database.getPerfume(brand, name, year);
+    // Check cache first if enabled
+    let perfume = useCache ? await database.getPerfume(brand, name, year) : null;
 
     if (!perfume) {
-      // Build URL and scrape
-      const url = `/Perfumes/${encodeURIComponent(brand)}/${encodeURIComponent(name)}`;
+      // Build URL with proper Parfumo format (replace spaces with underscores)
+      const brandSlug = brand.replace(/\s+/g, '_');
+      const nameSlug = name.replace(/\s+/g, '_');
+      const url = `/Perfumes/${encodeURIComponent(brandSlug)}/${encodeURIComponent(nameSlug)}`;
+
+      logger.info(`Fetching perfume: ${brand} - ${name}`);
       perfume = await parfumoScraper.getPerfumeDetails(url);
 
       // Save to cache
@@ -111,11 +116,13 @@ router.get('/perfume/:brand/:name', async (req: Request, res: Response) => {
 
 /**
  * Get perfume details by URL
- * POST /api/perfume/by-url
+ * POST /api/perfume/by-url?cache=true
+ * Body: { "url": "https://www.parfumo.com/Perfumes/Brand/Name" }
  */
 router.post('/perfume/by-url', async (req: Request, res: Response) => {
   try {
     const { url } = req.body;
+    const useCache = req.query.cache !== 'false';
 
     if (!url) {
       const response: ApiResponse<null> = {
@@ -126,11 +133,12 @@ router.post('/perfume/by-url', async (req: Request, res: Response) => {
       return res.status(400).json(response);
     }
 
-    // Check cache first
-    let perfume = await database.getPerfumeByUrl(url);
+    // Check cache first if enabled
+    let perfume = useCache ? await database.getPerfumeByUrl(url) : null;
 
     if (!perfume) {
       // Scrape the URL
+      logger.info(`Fetching perfume from URL: ${url}`);
       perfume = await parfumoScraper.getPerfumeDetails(url);
 
       // Save to cache

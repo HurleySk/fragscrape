@@ -136,10 +136,6 @@ class ParfumoScraper {
         name = name.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
       }
 
-      // Debug: Log page title and sample classes to understand structure
-      const pageTitle = $('title').text();
-      logger.debug(`Detail page title: ${pageTitle}`);
-      logger.debug(`Sample classes: ${$('[class]').slice(0, 15).map((_, el) => $(el).attr('class')).get().join(', ')}`);
 
       // Extract other information using selectors (may need updating based on actual HTML)
       const concentration = this.extractText($, '.concentration, .perfume-concentration, .type');
@@ -306,22 +302,25 @@ class ParfumoScraper {
       base: [] as string[],
     };
 
-    // Top notes
-    $('.top-notes .note, .notes-top .note, [class*="top"] .note').each((_, elem) => {
-      const note = $(elem).text().trim();
-      if (note) notes.top.push(note);
-    });
+    // Parfumo uses .notes_list containers with .clickable_note_img elements
+    // Each note has a data-nt attribute: 't' = top, 'm' = middle/heart, 'b' = base
+    $('.notes_list').each((_, section) => {
+      $(section).find('.clickable_note_img').each((_, elem) => {
+        const $elem = $(elem);
+        const note = $elem.text().trim();
+        const category = $elem.attr('data-nt');
 
-    // Heart/middle notes
-    $('.heart-notes .note, .middle-notes .note, .notes-heart .note, [class*="heart"] .note, [class*="middle"] .note').each((_, elem) => {
-      const note = $(elem).text().trim();
-      if (note) notes.heart.push(note);
-    });
+        if (!note) return;
 
-    // Base notes
-    $('.base-notes .note, .notes-base .note, [class*="base"] .note').each((_, elem) => {
-      const note = $(elem).text().trim();
-      if (note) notes.base.push(note);
+        // Categorize based on data-nt attribute
+        if (category === 't') {
+          notes.top.push(note);
+        } else if (category === 'm' || category === 'h') {
+          notes.heart.push(note);
+        } else if (category === 'b') {
+          notes.base.push(note);
+        }
+      });
     });
 
     // Return undefined if no notes found
@@ -346,7 +345,8 @@ class ParfumoScraper {
   }
 
   private extractRating($: cheerio.CheerioAPI): number | undefined {
-    const ratingText = this.extractText($, '.rating-value, .perfume-rating, .overall-rating');
+    // Parfumo uses .ratingvalue for the main rating
+    const ratingText = this.extractText($, '.ratingvalue');
     return this.parseRating(ratingText);
   }
 
@@ -359,8 +359,9 @@ class ParfumoScraper {
   }
 
   private extractTotalRatings($: cheerio.CheerioAPI): number | undefined {
-    const text = this.extractText($, '.rating-count, .total-ratings, .votes');
-    const match = text.match(/(\d+)/);
+    // Parfumo shows ratings count in .barfiller_element (e.g., "Scent 8.47490 Ratings")
+    const text = this.extractText($, '.barfiller_element');
+    const match = text.match(/(\d+)\s*Ratings/i);
     if (match) {
       return parseInt(match[1]);
     }
@@ -377,8 +378,19 @@ class ParfumoScraper {
   }
 
   private extractMainImage($: cheerio.CheerioAPI): string | undefined {
-    const img = $('.perfume-image img, .main-image img, .perfume-bottle img, img.perfume').first();
-    return this.extractImageUrl(img.attr('src') || img.attr('data-src'));
+    // Look for the main perfume bottle image (usually from media.parfumo.com)
+    let imageUrl: string | undefined;
+
+    // Try to find image with parfumo media URL
+    $('img').each((_, elem) => {
+      const src = $(elem).attr('src') || $(elem).attr('data-src');
+      if (src && src.includes('media.parfumo.com/perfumes')) {
+        imageUrl = this.extractImageUrl(src);
+        return false; // Stop iteration
+      }
+    });
+
+    return imageUrl;
   }
 
   private extractImageUrl(url: string | undefined): string | undefined {

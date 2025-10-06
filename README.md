@@ -104,14 +104,21 @@ GET /api/search?q={query}&limit=20&cache=true
 
 #### Get Perfume Details
 ```
-GET /api/perfume/{brand}/{name}?year=2020
+GET /api/perfume/{brand}/{name}?year=2020&cache=true
 ```
+Parameters:
+- `brand`: Brand name (spaces or underscores)
+- `name`: Perfume name (spaces or underscores)
+- `year`: Optional year variant
+- `cache`: Set to `false` to bypass cache (default: `true`)
 
 #### Get Perfume by URL
 ```
-POST /api/perfume/by-url
+POST /api/perfume/by-url?cache=true
 Body: { "url": "https://www.parfumo.com/..." }
 ```
+Parameters:
+- `cache`: Query parameter, set to `false` to bypass cache (default: `true`)
 
 #### Get Perfumes by Brand
 ```
