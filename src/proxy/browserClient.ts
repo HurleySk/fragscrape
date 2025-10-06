@@ -44,7 +44,7 @@ class BrowserClient {
 
       logger.info(`Launching browser with proxy: ${proxyConfig.endpoint}:${proxyConfig.port} (country: ${config.decodo.proxyCountry})`);
 
-      this.browser = await puppeteerExtra.launch({
+      const launchOptions: any = {
         headless: true,
         args: [
           `--proxy-server=http://${proxyConfig.endpoint}:${proxyConfig.port}`,
@@ -59,7 +59,14 @@ class BrowserClient {
           width: 1920,
           height: 1080,
         },
-      });
+      };
+
+      // Use custom executable path if configured (useful for ARM64 or custom Chrome installations)
+      if (config.browser.executablePath) {
+        launchOptions.executablePath = config.browser.executablePath;
+      }
+
+      this.browser = await puppeteerExtra.launch(launchOptions);
 
       // Store auth credentials for use in getPage()
       (this.browser as any).proxyAuth = proxyAuth;
