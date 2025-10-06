@@ -61,11 +61,21 @@ export interface Perfume {
   };
   accords?: string[];
   rating?: number; // Overall scent rating (main rating on Parfumo)
-  totalRatings?: number;
+  totalRatings?: number; // Total number of ratings for scent
   longevity?: number; // Longevity rating dimension
+  longevityRatingCount?: number; // Number of votes for longevity
   sillage?: number; // Sillage rating dimension
+  sillageRatingCount?: number; // Number of votes for sillage
   bottleRating?: number; // Bottle design rating dimension
+  bottleRatingCount?: number; // Number of votes for bottle
   priceValue?: number; // Value for money rating dimension
+  priceValueRatingCount?: number; // Number of votes for price-value
+  reviewCount?: number; // Number of in-depth reviews
+  statementCount?: number; // Number of user statements
+  photoCount?: number; // Number of community photos
+  rank?: number; // Ranking position (e.g., 26)
+  rankCategory?: string; // Category ranked in (e.g., "Men's Perfume")
+  perfumer?: string; // Perfumer name(s)
   similarFragrances?: string[];
   scrapedAt: Date;
 }

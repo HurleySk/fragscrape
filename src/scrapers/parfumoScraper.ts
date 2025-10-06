@@ -192,6 +192,15 @@ class ParfumoScraper {
       // Extract similar fragrances
       const similarFragrances = this.extractSimilarFragrances($);
 
+      // Extract community stats
+      const communityStats = this.extractCommunityStats($);
+
+      // Extract ranking
+      const ranking = this.extractRanking($);
+
+      // Extract perfumer
+      const perfumer = this.extractPerfumer($);
+
       const perfume: Perfume = {
         name,
         brand,
@@ -206,9 +215,19 @@ class ParfumoScraper {
         rating: ratings.scent,
         totalRatings: ratings.totalRatings,
         longevity: ratings.longevity,
+        longevityRatingCount: ratings.longevityRatingCount,
         sillage: ratings.sillage,
+        sillageRatingCount: ratings.sillageRatingCount,
         bottleRating: ratings.bottle,
+        bottleRatingCount: ratings.bottleRatingCount,
         priceValue: ratings.priceValue,
+        priceValueRatingCount: ratings.priceValueRatingCount,
+        reviewCount: communityStats.reviewCount,
+        statementCount: communityStats.statementCount,
+        photoCount: communityStats.photoCount,
+        rank: ranking.rank,
+        rankCategory: ranking.rankCategory,
+        perfumer,
         similarFragrances,
         scrapedAt: new Date(),
       };
@@ -508,6 +527,10 @@ class ParfumoScraper {
     bottle?: number;
     priceValue?: number;
     totalRatings?: number;
+    longevityRatingCount?: number;
+    sillageRatingCount?: number;
+    bottleRatingCount?: number;
+    priceValueRatingCount?: number;
   } {
     const ratings = {
       scent: undefined as number | undefined,
@@ -516,6 +539,10 @@ class ParfumoScraper {
       bottle: undefined as number | undefined,
       priceValue: undefined as number | undefined,
       totalRatings: undefined as number | undefined,
+      longevityRatingCount: undefined as number | undefined,
+      sillageRatingCount: undefined as number | undefined,
+      bottleRatingCount: undefined as number | undefined,
+      priceValueRatingCount: undefined as number | undefined,
     };
 
     // Extract total ratings count from main rating section
@@ -528,12 +555,16 @@ class ParfumoScraper {
 
     // Parfumo structure: Each .barfiller_element has data-type attribute
     // The rating value is in a nested <span class="pr-0-5 text-lg bold"> element
+    // Rating counts are in the same element, format: "7.5 / 10   5956 Ratings"
     $('.barfiller_element').each((_, elem) => {
       const $elem = $(elem);
 
       // Get dimension type from data-type attribute
       const dataType = $elem.attr('data-type');
       if (!dataType) return;
+
+      // Extract the full text which contains both rating and count
+      const fullText = $elem.text().trim();
 
       // Extract rating value from nested bold span
       // Selectors: .pr-0-5.text-lg.bold or just .bold within the element
@@ -545,7 +576,13 @@ class ParfumoScraper {
       if (!ratingMatch) return;
 
       const ratingValue = parseFloat(ratingMatch[1]);
-      logger.debug(`Extracted rating - type: ${dataType}, value: ${ratingValue}`);
+
+      // Extract rating count from full text
+      // Format: "X.X / 10   YYYY Ratings"
+      const countMatch = fullText.match(/(\d[\d,]*)\s*Ratings?/i);
+      const ratingCount = countMatch ? parseInt(countMatch[1].replace(/,/g, '')) : undefined;
+
+      logger.debug(`Extracted rating - type: ${dataType}, value: ${ratingValue}, count: ${ratingCount}`);
 
       // Map data-type attribute to rating fields
       switch (dataType) {
@@ -554,21 +591,107 @@ class ParfumoScraper {
           break;
         case 'durability':
           ratings.longevity = ratingValue;
+          ratings.longevityRatingCount = ratingCount;
           break;
         case 'sillage':
           ratings.sillage = ratingValue;
+          ratings.sillageRatingCount = ratingCount;
           break;
         case 'bottle':
           ratings.bottle = ratingValue;
+          ratings.bottleRatingCount = ratingCount;
           break;
         case 'pricing':
           ratings.priceValue = ratingValue;
+          ratings.priceValueRatingCount = ratingCount;
           break;
       }
     });
 
     logger.debug(`Extracted ratings:`, ratings);
     return ratings;
+  }
+
+  private extractCommunityStats($: cheerio.CheerioAPI): {
+    reviewCount?: number;
+    statementCount?: number;
+    photoCount?: number;
+  } {
+    const stats = {
+      reviewCount: undefined as number | undefined,
+      statementCount: undefined as number | undefined,
+      photoCount: undefined as number | undefined,
+    };
+
+    // Look for review count - typically "214 reviews" or "54 in-depth reviews"
+    const reviewText = $('body').text();
+    const reviewMatch = reviewText.match(/(\d+)\s*(?:in-depth\s+)?reviews?/i);
+    if (reviewMatch) {
+      stats.reviewCount = parseInt(reviewMatch[1]);
+    }
+
+    // Look for statement count - typically "84 statements"
+    const statementMatch = reviewText.match(/(\d+)\s*statements?/i);
+    if (statementMatch) {
+      stats.statementCount = parseInt(statementMatch[1]);
+    }
+
+    // Look for photo count - typically "131 community photos" or "108 photos"
+    const photoMatch = reviewText.match(/(\d+)\s*(?:community\s+)?photos?/i);
+    if (photoMatch) {
+      stats.photoCount = parseInt(photoMatch[1]);
+    }
+
+    logger.debug(`Extracted community stats:`, stats);
+    return stats;
+  }
+
+  private extractRanking($: cheerio.CheerioAPI): {
+    rank?: number;
+    rankCategory?: string;
+  } {
+    const ranking = {
+      rank: undefined as number | undefined,
+      rankCategory: undefined as string | undefined,
+    };
+
+    // Look for ranking text - typically "Ranked #26 in Men's Perfume"
+    const rankText = $('body').text();
+    const rankMatch = rankText.match(/Ranked\s+#?(\d+)\s+in\s+([^\n.]+)/i);
+    if (rankMatch) {
+      ranking.rank = parseInt(rankMatch[1]);
+      // Clean up category: trim whitespace and remove trailing digits
+      ranking.rankCategory = rankMatch[2].trim().replace(/\s+\d+$/, '');
+    }
+
+    logger.debug(`Extracted ranking:`, ranking);
+    return ranking;
+  }
+
+  private extractPerfumer($: cheerio.CheerioAPI): string | undefined {
+    // Look for perfumer info - multiple possible locations
+    let perfumer: string | undefined;
+
+    // Strategy 1: Look for "Perfumer:" label
+    $('body').find('*').each((_, elem) => {
+      const text = $(elem).text();
+      if (text.includes('Perfumer:')) {
+        const match = text.match(/Perfumer:\s*([^,\n]+)/i);
+        if (match) {
+          perfumer = match[1].trim();
+          return false; // Stop iteration
+        }
+      }
+      return; // Continue iteration
+    });
+
+    // Strategy 2: Look for specific perfumer class or attribute
+    if (!perfumer) {
+      perfumer = this.extractText($, '.perfumer, [itemprop="creator"]');
+    }
+
+    logger.debug(`Extracted perfumer: ${perfumer || 'undefined'}`);
+    return perfumer;
   }
 
   private parseRating(text: string): number | undefined {

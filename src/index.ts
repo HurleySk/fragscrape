@@ -164,7 +164,7 @@ const startServer = async () => {
       logger.info(`🚀 Fragscrape API server running on port ${port}`);
       console.log(`
 ╔══════════════════════════════════════════════════╗
-║           Fragscrape API Server v1.1.1           ║
+║           Fragscrape API Server v1.1.2           ║
 ╚══════════════════════════════════════════════════╝
 
 🚀 Server running at: http://localhost:${port}

@@ -27,9 +27,19 @@ interface PerfumeRow extends DatabaseRow {
   rating: number | null;
   total_ratings: number | null;
   longevity: number | null;
+  longevity_rating_count: number | null;
   sillage: number | null;
+  sillage_rating_count: number | null;
   bottle: number | null;
+  bottle_rating_count: number | null;
   price_value: number | null;
+  price_value_rating_count: number | null;
+  review_count: number | null;
+  statement_count: number | null;
+  photo_count: number | null;
+  rank: number | null;
+  rank_category: string | null;
+  perfumer: string | null;
   similar_fragrances: string;
   scraped_at: string;
   cached_until: string;
@@ -95,9 +105,19 @@ class DatabaseService {
         rating REAL,
         total_ratings INTEGER,
         longevity REAL,
+        longevity_rating_count INTEGER,
         sillage REAL,
+        sillage_rating_count INTEGER,
         bottle REAL,
+        bottle_rating_count INTEGER,
         price_value REAL,
+        price_value_rating_count INTEGER,
+        review_count INTEGER,
+        statement_count INTEGER,
+        photo_count INTEGER,
+        rank INTEGER,
+        rank_category TEXT,
+        perfumer TEXT,
         similar_fragrances TEXT,
         scraped_at DATETIME NOT NULL,
         cached_until DATETIME NOT NULL,
@@ -105,14 +125,30 @@ class DatabaseService {
       )
     `);
 
-    // Migration: Add bottle column to existing tables
-    try {
-      this.db.exec(`ALTER TABLE perfumes ADD COLUMN bottle REAL`);
-      logger.info('Added bottle column to perfumes table');
-    } catch (error: any) {
-      // Column may already exist, ignore error
-      if (!error.message.includes('duplicate column name')) {
-        logger.debug('Bottle column migration skipped (may already exist)');
+    // Migrations: Add new columns to existing tables
+    const migrations = [
+      { column: 'bottle', type: 'REAL', desc: 'bottle rating' },
+      { column: 'longevity_rating_count', type: 'INTEGER', desc: 'longevity vote count' },
+      { column: 'sillage_rating_count', type: 'INTEGER', desc: 'sillage vote count' },
+      { column: 'bottle_rating_count', type: 'INTEGER', desc: 'bottle vote count' },
+      { column: 'price_value_rating_count', type: 'INTEGER', desc: 'price-value vote count' },
+      { column: 'review_count', type: 'INTEGER', desc: 'review count' },
+      { column: 'statement_count', type: 'INTEGER', desc: 'statement count' },
+      { column: 'photo_count', type: 'INTEGER', desc: 'photo count' },
+      { column: 'rank', type: 'INTEGER', desc: 'ranking position' },
+      { column: 'rank_category', type: 'TEXT', desc: 'ranking category' },
+      { column: 'perfumer', type: 'TEXT', desc: 'perfumer name' },
+    ];
+
+    for (const migration of migrations) {
+      try {
+        this.db.exec(`ALTER TABLE perfumes ADD COLUMN ${migration.column} ${migration.type}`);
+        logger.info(`Added ${migration.column} column to perfumes table`);
+      } catch (error: any) {
+        // Column may already exist, ignore error
+        if (!error.message.includes('duplicate column name')) {
+          logger.debug(`Migration for ${migration.column} failed (may already exist)`);
+        }
       }
     }
 
@@ -176,9 +212,12 @@ class DatabaseService {
       INSERT OR REPLACE INTO perfumes (
         brand, name, year, url, image_url, concentration, gender,
         description, notes_top, notes_heart, notes_base, accords,
-        rating, total_ratings, longevity, sillage, bottle, price_value,
+        rating, total_ratings, longevity, longevity_rating_count,
+        sillage, sillage_rating_count, bottle, bottle_rating_count,
+        price_value, price_value_rating_count, review_count, statement_count,
+        photo_count, rank, rank_category, perfumer,
         similar_fragrances, scraped_at, cached_until
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -197,9 +236,19 @@ class DatabaseService {
       perfume.rating || null,
       perfume.totalRatings || null,
       perfume.longevity || null,
+      perfume.longevityRatingCount || null,
       perfume.sillage || null,
+      perfume.sillageRatingCount || null,
       perfume.bottleRating || null,
+      perfume.bottleRatingCount || null,
       perfume.priceValue || null,
+      perfume.priceValueRatingCount || null,
+      perfume.reviewCount || null,
+      perfume.statementCount || null,
+      perfume.photoCount || null,
+      perfume.rank || null,
+      perfume.rankCategory || null,
+      perfume.perfumer || null,
       JSON.stringify(perfume.similarFragrances || []),
       perfume.scrapedAt.toISOString(),
       cachedUntil.toISOString()
@@ -262,9 +311,19 @@ class DatabaseService {
       rating: row.rating || undefined,
       totalRatings: row.total_ratings || undefined,
       longevity: row.longevity || undefined,
+      longevityRatingCount: row.longevity_rating_count || undefined,
       sillage: row.sillage || undefined,
+      sillageRatingCount: row.sillage_rating_count || undefined,
       bottleRating: row.bottle || undefined,
+      bottleRatingCount: row.bottle_rating_count || undefined,
       priceValue: row.price_value || undefined,
+      priceValueRatingCount: row.price_value_rating_count || undefined,
+      reviewCount: row.review_count || undefined,
+      statementCount: row.statement_count || undefined,
+      photoCount: row.photo_count || undefined,
+      rank: row.rank || undefined,
+      rankCategory: row.rank_category || undefined,
+      perfumer: row.perfumer || undefined,
       similarFragrances: JSON.parse(row.similar_fragrances || '[]'),
       scrapedAt: new Date(row.scraped_at),
     };

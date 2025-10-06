@@ -1,4 +1,4 @@
-# Fragscrape API v1.1.0
+# Fragscrape API v1.1.2
 
 A sophisticated web scraping API for perfume and fragrance data from Parfumo and Fragrantica, built with TypeScript, Express, and utilizing Decodo's rotating residential proxies for reliable data extraction.
 
@@ -103,6 +103,32 @@ curl http://localhost:3000/api/proxy/status | jq .
 # Monitor all sub-users
 curl http://localhost:3000/api/proxy/subusers | jq .
 ```
+
+## Perfume Data Fields
+
+Each perfume response includes comprehensive statistics:
+
+**Basic Information**: brand, name, year, url, imageUrl, concentration, gender, description
+
+**Fragrance Notes**: top, heart, and base notes arrays
+
+**Ratings** (with vote counts for confidence):
+- `rating` / `totalRatings` - Overall scent rating
+- `longevity` / `longevityRatingCount` - How long the fragrance lasts
+- `sillage` / `sillageRatingCount` - Projection/how far the scent travels
+- `bottleRating` / `bottleRatingCount` - Bottle design quality
+- `priceValue` / `priceValueRatingCount` - Value for money
+
+**Community Engagement**:
+- `reviewCount` - Number of in-depth reviews
+- `statementCount` - Number of user statements/comments
+- `photoCount` - Number of community-uploaded photos
+
+**Rankings**:
+- `rank` - Position in category (e.g., #4)
+- `rankCategory` - Category ranked in (e.g., "Men's Perfume")
+
+**Additional**: perfumer, similarFragrances, scrapedAt
 
 ## API Endpoints
 
@@ -268,6 +294,8 @@ All configuration is done through environment variables:
 | `DECODO_PROXY_ENDPOINT` | Proxy server endpoint | gate.decodo.com |
 | `DECODO_PROXY_PORT` | Proxy server port | 7000 |
 | `DATABASE_PATH` | SQLite database path | ./data/fragscrape.db |
+| `CACHE_PERFUME_DURATION_SECONDS` | Cache duration for perfume details | 86400 (24h) |
+| `CACHE_SEARCH_DURATION_SECONDS` | Cache duration for search results | 3600 (1h) |
 | `LOG_LEVEL` | Logging level (error/warn/info/debug) | info |
 | `LOG_FILE_MAX_SIZE_MB` | Max size per log file | 5 |
 | `LOG_FILE_MAX_FILES` | Number of rotated log files to keep | 5 |
