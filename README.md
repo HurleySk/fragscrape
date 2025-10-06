@@ -68,10 +68,20 @@ npm start
 ### First Time Setup
 
 1. Start the server
-2. Create your first Decodo sub-user:
-```bash
-curl -X POST http://localhost:3000/api/proxy/create-subuser
-```
+2. Set up a Decodo sub-user (choose one):
+
+   **Option A: Create a new sub-user** (recommended for new accounts)
+   ```bash
+   curl -X POST http://localhost:3000/api/proxy/create-subuser
+   ```
+
+   **Option B: Add existing sub-user** (if you already have one in Decodo)
+   ```bash
+   curl -X POST http://localhost:3000/api/proxy/add-subuser \
+     -H "Content-Type: application/json" \
+     -d '{"username": "your_existing_subuser", "password": "their_password"}'
+   ```
+
 3. Test the proxy connection:
 ```bash
 curl http://localhost:3000/api/proxy/test
@@ -152,6 +162,47 @@ POST /api/proxy/rotate
 GET /api/proxy/subusers
 ```
 
+#### Add Existing Sub-User
+```
+POST /api/proxy/add-subuser
+Body: { "username": "existing_user", "password": "their_password" }
+```
+
+Adds an existing Decodo sub-user to the local database. Useful for:
+- Importing sub-users created outside the API
+- Recovering from database loss
+- Managing pre-existing sub-users
+
+Response includes current traffic usage, status, and all sub-user details.
+
+**Example:**
+```bash
+curl -X POST http://localhost:3000/api/proxy/add-subuser \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "fragscrape_1234567890_abc",
+    "password": "SecureP@ssw0rd"
+  }'
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "12345",
+    "username": "fragscrape_1234567890_abc",
+    "status": "active",
+    "trafficUsedMB": "123.45",
+    "trafficLimitMB": "1024.00",
+    "usagePercent": "12.1",
+    "serviceType": "residential",
+    "createdAt": "2024-01-15T10:30:00.000Z",
+    "lastChecked": "2025-10-06T..."
+  }
+}
+```
+
 ## Authentication Methods
 
 ### API Key Authentication (Recommended)
@@ -191,6 +242,11 @@ curl http://localhost:3000/api/proxy/test
 
 # Create new sub-user (1GB limit)
 curl -X POST http://localhost:3000/api/proxy/create-subuser
+
+# Add existing sub-user to database
+curl -X POST http://localhost:3000/api/proxy/add-subuser \
+  -H "Content-Type: application/json" \
+  -d '{"username": "existing_user", "password": "their_password"}'
 
 # Force rotate to different proxy
 curl -X POST http://localhost:3000/api/proxy/rotate
@@ -236,13 +292,16 @@ fragscrape/
 
 ## Sub-User Management
 
-The API automatically manages Decodo sub-users to control costs:
+The API provides flexible Decodo sub-user management to control costs:
 
-1. **Automatic Creation**: Prompts for new sub-user when needed
+1. **Creation Options**:
+   - Create new sub-users via API
+   - Import existing sub-users from your Decodo account
 2. **Usage Monitoring**: Tracks traffic usage in real-time
 3. **Warning System**: Alerts at 900MB usage (configurable)
-4. **Rotation**: Automatically switches when limit approached
-5. **Cost Control**: Each sub-user limited to 1GB
+4. **Automatic Rotation**: Switches when limit approached
+5. **Cost Control**: Each sub-user limited to 1GB (configurable)
+6. **Status Tracking**: Real-time status (active/exhausted/error)
 
 ## Error Handling
 
@@ -269,9 +328,18 @@ npm test
 ## Troubleshooting
 
 ### No Active Sub-Users
-Create a new sub-user via the API:
+Create a new sub-user or add an existing one:
+
+**Create new:**
 ```bash
 curl -X POST http://localhost:3000/api/proxy/create-subuser
+```
+
+**Add existing:**
+```bash
+curl -X POST http://localhost:3000/api/proxy/add-subuser \
+  -H "Content-Type: application/json" \
+  -d '{"username": "your_user", "password": "your_password"}'
 ```
 
 ### Proxy Connection Failed
