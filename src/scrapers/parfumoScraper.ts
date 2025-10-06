@@ -148,14 +148,8 @@ class ParfumoScraper {
       // Extract accords
       const accords = this.extractAccords($);
 
-      // Extract ratings
-      const rating = this.extractRating($);
-      const totalRatings = this.extractTotalRatings($);
-
-      // Extract performance metrics
-      const longevity = this.extractMetric($, '.longevity, .perfume-longevity');
-      const sillage = this.extractMetric($, '.sillage, .perfume-sillage');
-      const priceValue = this.extractMetric($, '.price-value, .value');
+      // Extract all rating dimensions from barfiller elements
+      const ratings = this.extractAllRatings($);
 
       // Extract image
       const imageUrl = this.extractMainImage($);
@@ -174,11 +168,12 @@ class ParfumoScraper {
         description,
         notes,
         accords,
-        rating,
-        totalRatings,
-        longevity,
-        sillage,
-        priceValue,
+        rating: ratings.scent,
+        totalRatings: ratings.totalRatings,
+        longevity: ratings.longevity,
+        sillage: ratings.sillage,
+        bottleRating: ratings.bottle,
+        priceValue: ratings.priceValue,
         similarFragrances,
         scrapedAt: new Date(),
       };
@@ -342,6 +337,76 @@ class ParfumoScraper {
     });
 
     return accords;
+  }
+
+  private extractAllRatings($: cheerio.CheerioAPI): {
+    scent?: number;
+    longevity?: number;
+    sillage?: number;
+    bottle?: number;
+    priceValue?: number;
+    totalRatings?: number;
+  } {
+    const ratings = {
+      scent: undefined as number | undefined,
+      longevity: undefined as number | undefined,
+      sillage: undefined as number | undefined,
+      bottle: undefined as number | undefined,
+      priceValue: undefined as number | undefined,
+      totalRatings: undefined as number | undefined,
+    };
+
+    // Extract total ratings count from main rating section
+    // Format: "117 Ratings" in the itemprop="ratingCount" span
+    const ratingCountText = $('[itemprop="ratingCount"]').text().trim();
+    const countMatch = ratingCountText.match(/(\d+)\s*Ratings?/i);
+    if (countMatch) {
+      ratings.totalRatings = parseInt(countMatch[1]);
+    }
+
+    // Parfumo structure: Each .barfiller_element has data-type attribute
+    // The rating value is in a nested <span class="pr-0-5 text-lg bold"> element
+    $('.barfiller_element').each((_, elem) => {
+      const $elem = $(elem);
+
+      // Get dimension type from data-type attribute
+      const dataType = $elem.attr('data-type');
+      if (!dataType) return;
+
+      // Extract rating value from nested bold span
+      // Selectors: .pr-0-5.text-lg.bold or just .bold within the element
+      const $ratingSpan = $elem.find('span.bold, .pr-0-5.bold, .text-lg.bold').first();
+      if (!$ratingSpan.length) return;
+
+      const ratingText = $ratingSpan.text().trim();
+      const ratingMatch = ratingText.match(/(\d+\.?\d*)/);
+      if (!ratingMatch) return;
+
+      const ratingValue = parseFloat(ratingMatch[1]);
+      logger.debug(`Extracted rating - type: ${dataType}, value: ${ratingValue}`);
+
+      // Map data-type attribute to rating fields
+      switch (dataType) {
+        case 'scent':
+          ratings.scent = ratingValue;
+          break;
+        case 'durability':
+          ratings.longevity = ratingValue;
+          break;
+        case 'sillage':
+          ratings.sillage = ratingValue;
+          break;
+        case 'bottle':
+          ratings.bottle = ratingValue;
+          break;
+        case 'pricing':
+          ratings.priceValue = ratingValue;
+          break;
+      }
+    });
+
+    logger.debug(`Extracted ratings:`, ratings);
+    return ratings;
   }
 
   private extractRating($: cheerio.CheerioAPI): number | undefined {

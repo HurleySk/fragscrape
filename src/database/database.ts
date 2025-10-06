@@ -56,6 +56,7 @@ class Database {
         total_ratings INTEGER,
         longevity REAL,
         sillage REAL,
+        bottle REAL,
         price_value REAL,
         similar_fragrances TEXT,
         scraped_at DATETIME NOT NULL,
@@ -63,6 +64,17 @@ class Database {
         UNIQUE(brand, name, year)
       )
     `);
+
+    // Migration: Add bottle column to existing tables
+    try {
+      await (this.db.run as any)(`ALTER TABLE perfumes ADD COLUMN bottle REAL`);
+      logger.info('Added bottle column to perfumes table');
+    } catch (error: any) {
+      // Column may already exist, ignore error
+      if (!error.message.includes('duplicate column name')) {
+        logger.debug('Bottle column migration skipped (may already exist)');
+      }
+    }
 
     // Sub-users table
     await (this.db.run as any)(`
@@ -123,9 +135,9 @@ class Database {
       INSERT OR REPLACE INTO perfumes (
         brand, name, year, url, image_url, concentration, gender,
         description, notes_top, notes_heart, notes_base, accords,
-        rating, total_ratings, longevity, sillage, price_value,
+        rating, total_ratings, longevity, sillage, bottle, price_value,
         similar_fragrances, scraped_at, cached_until
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     await (this.db.run as any)(
@@ -146,6 +158,7 @@ class Database {
       perfume.totalRatings || null,
       perfume.longevity || null,
       perfume.sillage || null,
+      perfume.bottleRating || null,
       perfume.priceValue || null,
       JSON.stringify(perfume.similarFragrances || []),
       perfume.scrapedAt.toISOString(),
@@ -205,6 +218,7 @@ class Database {
       totalRatings: row.total_ratings || undefined,
       longevity: row.longevity || undefined,
       sillage: row.sillage || undefined,
+      bottleRating: row.bottle || undefined,
       priceValue: row.price_value || undefined,
       similarFragrances: JSON.parse(row.similar_fragrances || '[]'),
       scrapedAt: new Date(row.scraped_at),

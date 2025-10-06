@@ -60,11 +60,12 @@ export interface Perfume {
     base: string[];
   };
   accords?: string[];
-  rating?: number;
+  rating?: number; // Overall scent rating (main rating on Parfumo)
   totalRatings?: number;
-  longevity?: number;
-  sillage?: number;
-  priceValue?: number;
+  longevity?: number; // Longevity rating dimension
+  sillage?: number; // Sillage rating dimension
+  bottleRating?: number; // Bottle design rating dimension
+  priceValue?: number; // Value for money rating dimension
   similarFragrances?: string[];
   scrapedAt: Date;
 }
