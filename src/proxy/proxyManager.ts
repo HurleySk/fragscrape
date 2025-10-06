@@ -141,6 +141,68 @@ class ProxyManager extends EventEmitter {
   }
 
   /**
+   * Add an existing sub-user to the local database
+   */
+  async addExistingSubUser(username: string, password: string): Promise<DecodoSubUser> {
+    try {
+      // First, check if we already have this sub-user in our database
+      const dbSubUsers = await database.getSubUsers();
+      const existing = dbSubUsers.find(su => su.username === username);
+      if (existing) {
+        throw new Error(`Sub-user ${username} already exists in local database`);
+      }
+
+      // Fetch all sub-users from Decodo API to find this one
+      const apiSubUsers = await decodoClient.getSubUsers();
+      const apiSubUser = apiSubUsers.find(su => su.username === username);
+
+      if (!apiSubUser) {
+        throw new Error(`Sub-user ${username} not found in Decodo account`);
+      }
+
+      // Get current traffic usage
+      const traffic = await decodoClient.getSubUserTraffic(apiSubUser.id.toString());
+
+      // Determine status based on traffic usage
+      const usedMB = traffic.traffic_used / (1024 * 1024);
+      const limitMB = traffic.traffic_limit / (1024 * 1024);
+      let status: 'active' | 'exhausted' | 'error' = 'active';
+
+      if (usedMB >= limitMB) {
+        status = 'exhausted';
+      } else if (usedMB >= config.subUserManagement.warningThresholdMB) {
+        // Still active but approaching limit
+        logger.warn(`Sub-user ${username} is approaching limit: ${usedMB.toFixed(2)}MB / ${limitMB}MB`);
+      }
+
+      // Create the sub-user object
+      const subUser: DecodoSubUser = {
+        id: apiSubUser.id.toString(),
+        username: apiSubUser.username,
+        password: password, // Store the password provided by user
+        status: status,
+        trafficLimit: traffic.traffic_limit,
+        trafficUsed: traffic.traffic_used,
+        serviceType: apiSubUser.service_type,
+        createdAt: new Date(apiSubUser.created_at),
+        lastChecked: new Date(),
+      };
+
+      // Add to our local pool
+      this.subUsers.set(subUser.id, subUser);
+
+      // Save to database for persistence
+      await database.saveSubUser(subUser);
+
+      logger.info(`Added existing sub-user: ${username} (status: ${status})`);
+      return subUser;
+    } catch (error) {
+      logger.error('Failed to add existing sub-user:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Load existing sub-users from database and Decodo
    */
   async loadSubUsers(): Promise<void> {

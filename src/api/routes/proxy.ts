@@ -86,6 +86,58 @@ router.post('/create-subuser', async (_req: Request, res: Response) => {
 });
 
 /**
+ * Add an existing sub-user to the database
+ * POST /api/proxy/add-subuser
+ * Body: { "username": "existing_user", "password": "their_password" }
+ */
+router.post('/add-subuser', async (req: Request, res: Response) => {
+  try {
+    const { username, password } = req.body;
+
+    // Validate required fields
+    if (!username || !password) {
+      const response: ApiResponse<null> = {
+        success: false,
+        error: 'Username and password are required',
+        timestamp: new Date(),
+      };
+      return res.status(400).json(response);
+    }
+
+    logger.info(`Adding existing sub-user: ${username}`);
+    const subUser = await proxyManager.addExistingSubUser(username, password);
+
+    const response: ApiResponse<any> = {
+      success: true,
+      data: {
+        id: subUser.id,
+        username: subUser.username,
+        status: subUser.status,
+        trafficUsedMB: (subUser.trafficUsed / (1024 * 1024)).toFixed(2),
+        trafficLimitMB: (subUser.trafficLimit / (1024 * 1024)).toFixed(2),
+        usagePercent: ((subUser.trafficUsed / subUser.trafficLimit) * 100).toFixed(1),
+        serviceType: subUser.serviceType,
+        createdAt: subUser.createdAt,
+        lastChecked: subUser.lastChecked,
+      },
+      timestamp: new Date(),
+    };
+
+    return res.json(response);
+  } catch (error: any) {
+    logger.error('Add sub-user endpoint error:', error);
+
+    const response: ApiResponse<null> = {
+      success: false,
+      error: error.message || 'Failed to add sub-user',
+      timestamp: new Date(),
+    };
+
+    return res.status(500).json(response);
+  }
+});
+
+/**
  * Test proxy connection
  * GET /api/proxy/test
  */

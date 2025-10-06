@@ -100,7 +100,7 @@ router.get('/perfume/:brand/:name', async (req: Request, res: Response) => {
       timestamp: new Date(),
     };
 
-    res.json(response);
+    return res.json(response);
   } catch (error: any) {
     logger.error('Perfume details endpoint error:', error);
 
@@ -184,7 +184,7 @@ router.get('/brand/:brand', async (req: Request, res: Response) => {
       timestamp: new Date(),
     };
 
-    res.json(response);
+    return res.json(response);
   } catch (error: any) {
     logger.error('Brand perfumes endpoint error:', error);
 

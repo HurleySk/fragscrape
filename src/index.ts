@@ -128,6 +128,7 @@ API Endpoints:
     • GET  /api/proxy/status            - View proxy status & usage
     • GET  /api/proxy/subusers          - List all sub-users
     • POST /api/proxy/create-subuser    - Create new sub-user (1GB)
+    • POST /api/proxy/add-subuser       - Add existing sub-user to DB
     • GET  /api/proxy/test              - Test proxy connection
     • POST /api/proxy/rotate            - Force rotate proxy
 
