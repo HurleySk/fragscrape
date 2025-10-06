@@ -34,6 +34,9 @@ const configSchema = z.object({
     trafficLimitGB: z.number(),
     warningThresholdMB: z.number(),
   }),
+  browser: z.object({
+    executablePath: z.string().optional(),
+  }),
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -65,6 +68,9 @@ const config: Config = {
   subUserManagement: {
     trafficLimitGB: parseFloat(process.env.SUB_USER_TRAFFIC_LIMIT_GB || '1'),
     warningThresholdMB: parseFloat(process.env.SUB_USER_WARNING_THRESHOLD_MB || '900'),
+  },
+  browser: {
+    executablePath: process.env.BROWSER_EXECUTABLE_PATH,
   },
 };
 
