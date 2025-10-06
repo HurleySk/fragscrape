@@ -22,7 +22,7 @@ A sophisticated web scraping API for perfume and fragrance data from Parfumo and
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/fragscrape.git
+git clone https://github.com/HurleySk/fragscrape.git
 cd fragscrape
 ```
 
