@@ -17,14 +17,14 @@ const logger = winston.createLogger({
     new winston.transports.File({
       filename: 'logs/error.log',
       level: 'error',
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
+      maxsize: config.logging.fileMaxSizeMB * 1024 * 1024, // Convert MB to bytes
+      maxFiles: config.logging.fileMaxFiles,
     }),
     // Write all logs with importance level of 'info' or less to combined.log
     new winston.transports.File({
       filename: 'logs/combined.log',
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
+      maxsize: config.logging.fileMaxSizeMB * 1024 * 1024, // Convert MB to bytes
+      maxFiles: config.logging.fileMaxFiles,
     }),
   ],
 });

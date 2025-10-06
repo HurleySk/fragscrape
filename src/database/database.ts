@@ -367,10 +367,27 @@ class Database {
   async cleanupExpiredCache(): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
 
-    await (this.db.run as any)("DELETE FROM perfumes WHERE cached_until < datetime('now')");
-    await (this.db.run as any)("DELETE FROM search_cache WHERE cached_until < datetime('now')");
+    const perfumesResult: any = await (this.db.run as any)("DELETE FROM perfumes WHERE cached_until < datetime('now')");
+    const searchResult: any = await (this.db.run as any)("DELETE FROM search_cache WHERE cached_until < datetime('now')");
 
-    logger.info('Cleaned up expired cache entries');
+    const totalDeleted = (perfumesResult.changes || 0) + (searchResult.changes || 0);
+    logger.info(`Cleaned up ${totalDeleted} expired cache entries`);
+  }
+
+  async cleanupOldRequestLogs(retentionDays: number): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    const sql = `
+      DELETE FROM request_logs
+      WHERE created_at < datetime('now', '-${retentionDays} days')
+    `;
+
+    const result: any = await (this.db.run as any)(sql);
+    const deletedCount = result.changes || 0;
+
+    if (deletedCount > 0) {
+      logger.info(`Cleaned up ${deletedCount} old request logs (older than ${retentionDays} days)`);
+    }
   }
 
   async close(): Promise<void> {

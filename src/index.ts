@@ -98,13 +98,17 @@ const startServer = async () => {
     });
 
     // Start cleanup interval
+    const cleanupIntervalMs = config.cleanup.intervalHours * 60 * 60 * 1000;
+    logger.info(`Starting cleanup interval: every ${config.cleanup.intervalHours} hours`);
+
     setInterval(async () => {
       try {
         await database.cleanupExpiredCache();
+        await database.cleanupOldRequestLogs(config.cleanup.logRetentionDays);
       } catch (error) {
-        logger.error('Cache cleanup error:', error);
+        logger.error('Cleanup error:', error);
       }
-    }, 3600000); // Every hour
+    }, cleanupIntervalMs);
 
     // Start server
     const port = config.api.port;
@@ -112,7 +116,7 @@ const startServer = async () => {
       logger.info(`🚀 Fragscrape API server running on port ${port}`);
       console.log(`
 ╔══════════════════════════════════════════════════╗
-║           Fragscrape API Server v1.0.0           ║
+║           Fragscrape API Server v1.1.0           ║
 ╚══════════════════════════════════════════════════╝
 
 🚀 Server running at: http://localhost:${port}

@@ -1,4 +1,4 @@
-# Fragscrape API
+# Fragscrape API v1.1.0
 
 A sophisticated web scraping API for perfume and fragrance data from Parfumo and Fragrantica, built with TypeScript, Express, and utilizing Decodo's rotating residential proxies for reliable data extraction.
 
@@ -7,9 +7,10 @@ A sophisticated web scraping API for perfume and fragrance data from Parfumo and
 - **Smart Proxy Management**: Automatic rotation of Decodo residential proxies with sub-user management
 - **Cost Control**: Built-in 1GB traffic limits per sub-user with automatic warnings
 - **Data Caching**: SQLite database for efficient caching and reducing API calls
+- **Automatic Cleanup**: Configurable auto-deletion of old logs and expired cache
 - **Rate Limiting**: Configurable rate limiting to respect target websites
 - **RESTful API**: Clean, well-documented API endpoints with comprehensive proxy monitoring
-- **Error Handling**: Comprehensive error handling and logging
+- **Error Handling**: Comprehensive error handling and logging with file rotation
 - **Real-time Monitoring**: Full proxy and sub-user status via API endpoints
 
 ## Prerequisites
@@ -267,7 +268,11 @@ All configuration is done through environment variables:
 | `DECODO_PROXY_ENDPOINT` | Proxy server endpoint | gate.decodo.com |
 | `DECODO_PROXY_PORT` | Proxy server port | 7000 |
 | `DATABASE_PATH` | SQLite database path | ./data/fragscrape.db |
-| `LOG_LEVEL` | Logging level | info |
+| `LOG_LEVEL` | Logging level (error/warn/info/debug) | info |
+| `LOG_FILE_MAX_SIZE_MB` | Max size per log file | 5 |
+| `LOG_FILE_MAX_FILES` | Number of rotated log files to keep | 5 |
+| `LOG_RETENTION_DAYS` | Keep database request logs for N days | 30 |
+| `CLEANUP_INTERVAL_HOURS` | Run cleanup every N hours | 24 |
 | `SUB_USER_TRAFFIC_LIMIT_GB` | Traffic limit per sub-user | 1 |
 | `SUB_USER_WARNING_THRESHOLD_MB` | Warning threshold | 900 |
 
@@ -348,9 +353,10 @@ curl -X POST http://localhost:3000/api/proxy/add-subuser \
 3. Test connection: `GET /api/proxy/test`
 
 ### Cache Issues
-Clear expired cache entries:
-- Automatic cleanup runs hourly
-- Manual cleanup: Delete `data/fragscrape.db`
+Cache and log cleanup:
+- Automatic cleanup runs every 24 hours (configurable via `CLEANUP_INTERVAL_HOURS`)
+- Removes expired cache and request logs older than 30 days (configurable via `LOG_RETENTION_DAYS`)
+- Manual cleanup: Delete `data/fragscrape.db` to clear all data
 
 ## Contributing
 

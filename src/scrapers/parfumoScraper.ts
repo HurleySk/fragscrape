@@ -19,6 +19,15 @@ class ParfumoScraper {
       await browserClient.delay(1000 + Math.random() * 1000);
 
       const html = await browserClient.getPageContent(searchUrl);
+
+      // Debug: Save HTML to file for inspection
+      if (process.env.DEBUG_HTML === 'true') {
+        const fs = await import('fs/promises');
+        const debugPath = `./debug_search_${query.replace(/\s+/g, '_')}.html`;
+        await fs.writeFile(debugPath, html);
+        logger.debug(`Saved HTML to: ${debugPath}`);
+      }
+
       const $ = cheerio.load(html);
 
       // Use a type that includes relevance for sorting
@@ -27,14 +36,13 @@ class ParfumoScraper {
       const seenUrls = new Set<string>();
 
       // Try multiple selector strategies for better accuracy
-      // 1. Look for perfume links in main content area (more specific)
-      // 2. Fall back to general .name selector if needed
+      // IMPORTANT: Use > (direct child) or :first-child to avoid selecting brand links
+      // Each .name div contains two <a> tags: one for perfume, one for brand
       const selectors = [
-        '#main .name a',           // Main content area with .name class
-        '.search-results .name a', // Search results container
-        '.perfume-item .name a',   // Perfume item containers
-        '#content .name a',        // Content area
-        '.name a',                 // General fallback
+        '.name > a',               // Direct child link (perfume link only)
+        '.name a:first-of-type',   // First anchor in .name (perfume link)
+        '#main .name > a',         // Main content area
+        '.search-results .name > a', // Search results container
       ];
 
       let foundResults = false;

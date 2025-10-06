@@ -25,6 +25,12 @@ const configSchema = z.object({
   }),
   logging: z.object({
     level: z.enum(['error', 'warn', 'info', 'debug']),
+    fileMaxSizeMB: z.number().default(5),
+    fileMaxFiles: z.number().default(5),
+  }),
+  cleanup: z.object({
+    logRetentionDays: z.number().default(30),
+    intervalHours: z.number().default(24),
   }),
   rateLimit: z.object({
     windowMs: z.number(),
@@ -60,6 +66,12 @@ const config: Config = {
   },
   logging: {
     level: (process.env.LOG_LEVEL as 'error' | 'warn' | 'info' | 'debug') || 'info',
+    fileMaxSizeMB: parseFloat(process.env.LOG_FILE_MAX_SIZE_MB || '5'),
+    fileMaxFiles: parseInt(process.env.LOG_FILE_MAX_FILES || '5', 10),
+  },
+  cleanup: {
+    logRetentionDays: parseInt(process.env.LOG_RETENTION_DAYS || '30', 10),
+    intervalHours: parseFloat(process.env.CLEANUP_INTERVAL_HOURS || '24'),
   },
   rateLimit: {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),
