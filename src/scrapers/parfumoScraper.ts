@@ -553,60 +553,48 @@ class ParfumoScraper {
       ratings.totalRatings = parseInt(countMatch[1]);
     }
 
-    // Parfumo structure: Each .barfiller_element has data-type attribute
-    // The rating value is in a nested <span class="pr-0-5 text-lg bold"> element
-    // Rating counts are in the same element, format: "7.5 / 10   5956 Ratings"
-    $('.barfiller_element').each((_, elem) => {
-      const $elem = $(elem);
+    // Parfumo structure: ratings appear as text in the format "Label\nValue\nCount Ratings"
+    // Extract from page text using regex patterns
+    const pageText = $('body').text();
 
-      // Get dimension type from data-type attribute
-      const dataType = $elem.attr('data-type');
-      if (!dataType) return;
+    // Scent rating (main rating) - already captured in totalRatings
+    const scentMatch = pageText.match(/Scent[^\d]*(\d+\.?\d*)[^\d]+(\d+)\s*Ratings?/i);
+    if (scentMatch) {
+      ratings.scent = parseFloat(scentMatch[1]);
+      logger.debug(`Extracted rating - label: scent, value: ${ratings.scent}`);
+    }
 
-      // Extract the full text which contains both rating and count
-      const fullText = $elem.text().trim();
+    // Longevity rating - format: "Longevity 6.9406 Ratings" (rating=6.9, count=406 concatenated)
+    const longevityMatch = pageText.match(/Longevity[^\d]*(\d{1,2}\.\d)(\d+)\s*Ratings?/i);
+    if (longevityMatch) {
+      ratings.longevity = parseFloat(longevityMatch[1]);
+      ratings.longevityRatingCount = parseInt(longevityMatch[2]);
+      logger.debug(`Extracted rating - label: longevity, value: ${ratings.longevity}, count: ${ratings.longevityRatingCount}`);
+    }
 
-      // Extract rating value from nested bold span
-      // Selectors: .pr-0-5.text-lg.bold or just .bold within the element
-      const $ratingSpan = $elem.find('span.bold, .pr-0-5.bold, .text-lg.bold').first();
-      if (!$ratingSpan.length) return;
+    // Sillage rating
+    const sillageMatch = pageText.match(/Sillage[^\d]*(\d{1,2}\.\d)(\d+)\s*Ratings?/i);
+    if (sillageMatch) {
+      ratings.sillage = parseFloat(sillageMatch[1]);
+      ratings.sillageRatingCount = parseInt(sillageMatch[2]);
+      logger.debug(`Extracted rating - label: sillage, value: ${ratings.sillage}, count: ${ratings.sillageRatingCount}`);
+    }
 
-      const ratingText = $ratingSpan.text().trim();
-      const ratingMatch = ratingText.match(/(\d+\.?\d*)/);
-      if (!ratingMatch) return;
+    // Bottle rating
+    const bottleMatch = pageText.match(/Bottle[^\d]*(\d{1,2}\.\d)(\d+)\s*Ratings?/i);
+    if (bottleMatch) {
+      ratings.bottle = parseFloat(bottleMatch[1]);
+      ratings.bottleRatingCount = parseInt(bottleMatch[2]);
+      logger.debug(`Extracted rating - label: bottle, value: ${ratings.bottle}, count: ${ratings.bottleRatingCount}`);
+    }
 
-      const ratingValue = parseFloat(ratingMatch[1]);
-
-      // Extract rating count from full text
-      // Format: "X.X / 10   YYYY Ratings"
-      const countMatch = fullText.match(/(\d[\d,]*)\s*Ratings?/i);
-      const ratingCount = countMatch ? parseInt(countMatch[1].replace(/,/g, '')) : undefined;
-
-      logger.debug(`Extracted rating - type: ${dataType}, value: ${ratingValue}, count: ${ratingCount}`);
-
-      // Map data-type attribute to rating fields
-      switch (dataType) {
-        case 'scent':
-          ratings.scent = ratingValue;
-          break;
-        case 'durability':
-          ratings.longevity = ratingValue;
-          ratings.longevityRatingCount = ratingCount;
-          break;
-        case 'sillage':
-          ratings.sillage = ratingValue;
-          ratings.sillageRatingCount = ratingCount;
-          break;
-        case 'bottle':
-          ratings.bottle = ratingValue;
-          ratings.bottleRatingCount = ratingCount;
-          break;
-        case 'pricing':
-          ratings.priceValue = ratingValue;
-          ratings.priceValueRatingCount = ratingCount;
-          break;
-      }
-    });
+    // Price/Value rating
+    const priceMatch = pageText.match(/(?:Value for money|Price[-\s]*Value|Pricing)[^\d]*(\d{1,2}\.\d)(\d+)\s*Ratings?/i);
+    if (priceMatch) {
+      ratings.priceValue = parseFloat(priceMatch[1]);
+      ratings.priceValueRatingCount = parseInt(priceMatch[2]);
+      logger.debug(`Extracted rating - label: price-value, value: ${ratings.priceValue}, count: ${ratings.priceValueRatingCount}`);
+    }
 
     logger.debug(`Extracted ratings:`, ratings);
     return ratings;
