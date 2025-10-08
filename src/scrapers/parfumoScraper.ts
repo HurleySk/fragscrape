@@ -557,8 +557,8 @@ class ParfumoScraper {
     // Extract from page text using regex patterns
     const pageText = $('body').text();
 
-    // Scent rating (main rating) - already captured in totalRatings
-    const scentMatch = pageText.match(/Scent[^\d]*(\d+\.?\d*)[^\d]+(\d+)\s*Ratings?/i);
+    // Scent rating (main rating) - uses concatenated format like other ratings
+    const scentMatch = pageText.match(/Scent[^\d]*(\d{1,2}\.\d)(\d+)\s*Ratings?/i);
     if (scentMatch) {
       ratings.scent = parseFloat(scentMatch[1]);
       logger.debug(`Extracted rating - label: scent, value: ${ratings.scent}`);
