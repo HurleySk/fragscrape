@@ -211,17 +211,17 @@ export class HtmlExtractor {
 
     const reviewText = $('body').text();
 
-    const reviewMatch = reviewText.match(/(\d+)\s*(?:in-depth\s+)?reviews?/i);
+    const reviewMatch = reviewText.match(/(\d+)\s*in-depth\s+fragrance\s+descriptions?/i);
     if (reviewMatch) {
       stats.reviewCount = parseInt(reviewMatch[1], 10);
     }
 
-    const statementMatch = reviewText.match(/(\d+)\s*statements?/i);
+    const statementMatch = reviewText.match(/(\d+)\s*short\s+views?\s+on\s+the\s+fragrance/i);
     if (statementMatch) {
       stats.statementCount = parseInt(statementMatch[1], 10);
     }
 
-    const photoMatch = reviewText.match(/(\d+)\s*(?:community\s+)?photos?/i);
+    const photoMatch = reviewText.match(/(\d+)\s*fragrance\s+photos?/i);
     if (photoMatch) {
       stats.photoCount = parseInt(photoMatch[1], 10);
     }

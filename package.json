@@ -1,6 +1,6 @@
 {
   "name": "fragscrape",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "API for scraping fragrance data from Parfumo and Fragrantica using Decodo proxies",
   "main": "dist/index.js",
   "scripts": {
