@@ -8,6 +8,8 @@ import proxyManager from './proxy/proxyManager';
 import perfumeRoutes from './api/routes/perfume';
 import proxyRoutes from './api/routes/proxy';
 import { errorHandler, notFoundHandler } from './api/middleware/errorHandler';
+import { displayStartupBanner } from './utils/banner';
+import { TIMEOUT_CONFIG } from './constants/scraping';
 
 const app = express();
 
@@ -112,11 +114,11 @@ const gracefulShutdown = async (signal: string) => {
     }
   });
 
-  // Force shutdown after 10 seconds
+  // Force shutdown after timeout
   setTimeout(() => {
     logger.error('Could not close connections in time, forcefully shutting down');
     process.exit(1);
-  }, 10000);
+  }, TIMEOUT_CONFIG.GRACEFUL_SHUTDOWN);
 };
 
 // Start server
@@ -162,31 +164,10 @@ const startServer = async () => {
     const port = config.api.port;
     server = app.listen(port, () => {
       logger.info(`🚀 Fragscrape API server running on port ${port}`);
-      console.log(`
-╔══════════════════════════════════════════════════╗
-║           Fragscrape API Server v1.1.3           ║
-╚══════════════════════════════════════════════════╝
 
-🚀 Server running at: http://localhost:${port}
-
-API Endpoints:
-  Perfume:
-    • GET  /api/search?q=query          - Search perfumes
-    • GET  /api/perfume/:brand/:name    - Get perfume details
-    • POST /api/perfume/by-url          - Get perfume by URL
-    • GET  /api/brand/:brand            - List brand perfumes
-
-  Proxy Management:
-    • GET  /api/proxy/status            - View proxy status & usage
-    • GET  /api/proxy/subusers          - List all sub-users
-    • POST /api/proxy/create-subuser    - Create new sub-user (1GB)
-    • POST /api/proxy/add-subuser       - Add existing sub-user to DB
-    • GET  /api/proxy/test              - Test proxy connection
-    • POST /api/proxy/rotate            - Force rotate proxy
-
-⚠️  Remember to create a Decodo sub-user before starting!
-   Use: curl -X POST http://localhost:${port}/api/proxy/create-subuser
-      `);
+      // Read version from package.json
+      const packageJson = require('../package.json');
+      displayStartupBanner({ version: packageJson.version, port });
     });
   } catch (error) {
     logger.error('Failed to start server:', error);

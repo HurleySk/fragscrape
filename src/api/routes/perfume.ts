@@ -2,9 +2,10 @@ import { Router, Request, Response } from 'express';
 import parfumoScraper from '../../scrapers/parfumoScraper';
 import database from '../../database/database';
 import logger from '../../utils/logger';
-import { ApiResponse, SearchResult, Perfume } from '../../types';
+import { SearchResult } from '../../types';
 import { asyncHandler } from '../middleware/errorHandler';
 import { validate } from '../middleware/validate';
+import { sendSuccess } from '../../utils/apiResponse';
 import {
   searchQuerySchema,
   perfumeParamsSchema,
@@ -22,9 +23,7 @@ const router = Router();
  * GET /api/search?q=query&limit=20&cache=true
  */
 router.get('/search', validate({ query: searchQuerySchema }), asyncHandler(async (req: Request, res: Response) => {
-  const query = req.query.q as unknown as string;
-  const limit = req.query.limit as unknown as number;
-  const useCache = req.query.cache as unknown as boolean;
+  const { q: query, limit, cache: useCache } = req.query as unknown as { q: string; limit: number; cache: boolean };
 
   // Check cache first
   if (useCache) {
@@ -32,12 +31,7 @@ router.get('/search', validate({ query: searchQuerySchema }), asyncHandler(async
     // Only use cache if it has valid results
     if (Array.isArray(cached) && cached.length > 0) {
       logger.info(`Returning ${cached.length} cached results for query: ${query}`);
-      const response: ApiResponse<SearchResult[]> = {
-        success: true,
-        data: cached as SearchResult[],
-        timestamp: new Date(),
-      };
-      return res.json(response);
+      return sendSuccess(res, cached as SearchResult[]);
     } else if (cached) {
       logger.warn(`Found empty cached results for query: ${query}, will re-scrape`);
     }
@@ -48,7 +42,6 @@ router.get('/search', validate({ query: searchQuerySchema }), asyncHandler(async
   const results = await parfumoScraper.search(query, limit);
 
   // Only cache results if we found valid matches
-  // Don't cache empty results or scraping failures
   if (results && results.length > 0) {
     database.saveSearchCache(query, results);
     logger.info(`Cached ${results.length} search results for: ${query}`);
@@ -56,13 +49,7 @@ router.get('/search', validate({ query: searchQuerySchema }), asyncHandler(async
     logger.warn(`No valid results to cache for query: ${query}`);
   }
 
-  const response: ApiResponse<SearchResult[]> = {
-    success: true,
-    data: results,
-    timestamp: new Date(),
-  };
-
-  return res.json(response);
+  return sendSuccess(res, results);
 }));
 
 /**
@@ -71,8 +58,7 @@ router.get('/search', validate({ query: searchQuerySchema }), asyncHandler(async
  */
 router.get('/perfume/:brand/:name', validate({ params: perfumeParamsSchema, query: perfumeQuerySchema }), asyncHandler(async (req: Request, res: Response) => {
   const { brand, name } = req.params;
-  const year = req.query.year as unknown as number | undefined;
-  const useCache = req.query.cache as unknown as boolean;
+  const { year, cache: useCache } = req.query as unknown as { year?: number; cache: boolean };
 
   // Normalize brand/name for cache lookup (URL has underscores, DB has spaces)
   const brandNormalized = brand.replace(/_/g, ' ');
@@ -96,13 +82,7 @@ router.get('/perfume/:brand/:name', validate({ params: perfumeParamsSchema, quer
     logger.info(`Returning cached perfume: ${brandNormalized} - ${nameNormalized}`);
   }
 
-  const response: ApiResponse<Perfume> = {
-    success: true,
-    data: perfume,
-    timestamp: new Date(),
-  };
-
-  return res.json(response);
+  return sendSuccess(res, perfume);
 }));
 
 /**
@@ -112,7 +92,7 @@ router.get('/perfume/:brand/:name', validate({ params: perfumeParamsSchema, quer
  */
 router.post('/perfume/by-url', validate({ body: perfumeByUrlSchema, query: perfumeByUrlQuerySchema }), asyncHandler(async (req: Request, res: Response) => {
   const { url } = req.body;
-  const useCache = req.query.cache as unknown as boolean;
+  const { cache: useCache } = req.query as unknown as { cache: boolean };
 
   // Check cache first if enabled
   let perfume = useCache ? database.getPerfumeByUrl(url) : null;
@@ -128,13 +108,7 @@ router.post('/perfume/by-url', validate({ body: perfumeByUrlSchema, query: perfu
     logger.info(`Returning cached perfume from URL: ${url}`);
   }
 
-  const response: ApiResponse<Perfume> = {
-    success: true,
-    data: perfume,
-    timestamp: new Date(),
-  };
-
-  return res.json(response);
+  return sendSuccess(res, perfume);
 }));
 
 /**
@@ -143,17 +117,11 @@ router.post('/perfume/by-url', validate({ body: perfumeByUrlSchema, query: perfu
  */
 router.get('/brand/:brand', validate({ params: brandParamsSchema, query: brandQuerySchema }), asyncHandler(async (req: Request, res: Response) => {
   const { brand } = req.params;
-  const page = req.query.page as unknown as number;
+  const { page } = req.query as unknown as { page: number };
 
   const results = await parfumoScraper.getPerfumesByBrand(brand, page);
 
-  const response: ApiResponse<SearchResult[]> = {
-    success: true,
-    data: results,
-    timestamp: new Date(),
-  };
-
-  return res.json(response);
+  return sendSuccess(res, results);
 }));
 
 export default router;

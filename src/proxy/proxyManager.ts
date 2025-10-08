@@ -5,6 +5,7 @@ import database from '../database/database';
 import { DecodoSubUser, ProxyConfig } from '../types';
 import { EventEmitter } from 'events';
 import { ProxyError, NotFoundError, ValidationError } from '../api/middleware/errorHandler';
+import { MONITORING_INTERVALS } from '../constants/scraping';
 
 class ProxyManager extends EventEmitter {
   private currentSubUser: DecodoSubUser | null = null;
@@ -260,12 +261,11 @@ class ProxyManager extends EventEmitter {
    * Start monitoring sub-user usage
    */
   private startMonitoring(): void {
-    // Check usage every 5 minutes
     this.checkInterval = setInterval(async () => {
       if (this.currentSubUser) {
         await this.checkSubUserUsage(this.currentSubUser);
       }
-    }, 5 * 60 * 1000);
+    }, MONITORING_INTERVALS.PROXY_USAGE_CHECK);
   }
 
   /**

@@ -1,36 +1,27 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import proxyManager from './proxyManager';
 import logger from '../utils/logger';
-import { randomUUID } from 'crypto';
 import { ProxyError, RateLimitError } from '../api/middleware/errorHandler';
 import { IHttpClient } from './types';
 import { retryWithBackoff } from '../utils/retry';
+import { BaseProxyClient } from './BaseProxyClient';
+import { TIMEOUT_CONFIG } from '../constants/scraping';
 
-class HttpClient implements IHttpClient {
+class HttpClient extends BaseProxyClient implements IHttpClient {
   private axiosInstance: AxiosInstance | null = null;
-  private sessionId: string | null = null;
-
-  /**
-   * Generate a session ID for sticky sessions (same IP across requests)
-   */
-  private generateSessionId(): string {
-    return `session_${randomUUID()}`;
-  }
 
   /**
    * Create an axios instance with proxy configuration
    */
   private async createAxiosInstance(): Promise<AxiosInstance> {
-    // Generate a session ID for sticky sessions if not already set
-    if (!this.sessionId) {
-      this.sessionId = this.generateSessionId();
-    }
+    // Get or create session ID
+    const sessionId = this.getSessionId();
 
     // Get proxy config with formatted username (includes session and country)
-    const proxyConfig = await proxyManager.getProxyConfig({ sessionId: this.sessionId });
+    const proxyConfig = await proxyManager.getProxyConfig({ sessionId });
 
     const axiosConfig: AxiosRequestConfig = {
-      timeout: 30000,
+      timeout: TIMEOUT_CONFIG.HTTP_TIMEOUT,
       maxRedirects: 10,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -52,7 +43,7 @@ class HttpClient implements IHttpClient {
       },
     };
 
-    logger.info(`HTTP client created with proxy: ${proxyConfig.endpoint}:${proxyConfig.port} (session: ${this.sessionId})`);
+    logger.info(`HTTP client created with proxy: ${proxyConfig.endpoint}:${proxyConfig.port} (session: ${sessionId})`);
 
     return axios.create(axiosConfig);
   }
@@ -72,8 +63,7 @@ class HttpClient implements IHttpClient {
    */
   async reset(): Promise<void> {
     this.axiosInstance = null;
-    // Reset session ID to get a new IP on next request
-    this.sessionId = null;
+    this.resetSessionId();
     logger.info('HTTP client reset - will use new proxy and session on next request');
   }
 
@@ -140,13 +130,6 @@ class HttpClient implements IHttpClient {
       logger.error('Proxy test failed:', error);
       return false;
     }
-  }
-
-  /**
-   * Add delay between requests to avoid rate limiting
-   */
-  async delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }
 

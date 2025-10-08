@@ -7,6 +7,7 @@ import {
   DecodoTrafficResponse,
 } from '../types';
 import { ProxyError, NotFoundError, ValidationError } from '../api/middleware/errorHandler';
+import { TIMEOUT_CONFIG } from '../constants/scraping';
 
 class DecodoClient {
   private apiClient: AxiosInstance;
@@ -33,7 +34,7 @@ class DecodoClient {
 
     this.apiClient = axios.create({
       baseURL,
-      timeout: 10000,
+      timeout: TIMEOUT_CONFIG.DECODO_API_TIMEOUT,
       headers,
     });
   }

@@ -5,6 +5,7 @@ import config from '../config/config';
 import logger from '../utils/logger';
 import { Perfume, DecodoSubUser } from '../types';
 import { DatabaseError } from '../api/middleware/errorHandler';
+import { validateGender, validateSubUserStatus } from '../utils/validation';
 
 interface DatabaseRow {
   [key: string]: any;
@@ -287,11 +288,6 @@ class DatabaseService {
   }
 
   private rowToPerfume(row: PerfumeRow): Perfume {
-    // Validate gender type
-    const gender = row.gender;
-    const validGender: 'male' | 'female' | 'unisex' | undefined =
-      gender === 'male' || gender === 'female' || gender === 'unisex' ? gender : undefined;
-
     return {
       id: row.id.toString(),
       brand: row.brand,
@@ -300,7 +296,7 @@ class DatabaseService {
       url: row.url,
       imageUrl: row.image_url || undefined,
       concentration: row.concentration || undefined,
-      gender: validGender,
+      gender: validateGender(row.gender),
       description: row.description || undefined,
       notes: {
         top: JSON.parse(row.notes_top || '[]'),
@@ -360,24 +356,17 @@ class DatabaseService {
     const stmt = this.db.prepare('SELECT * FROM subusers ORDER BY created_at DESC');
     const rows = stmt.all() as SubUserRow[];
 
-    return rows.map(row => {
-      // Validate status type
-      const status = row.status;
-      const validStatus: 'active' | 'exhausted' | 'error' =
-        status === 'active' || status === 'exhausted' || status === 'error' ? status : 'error';
-
-      return {
+    return rows.map(row => ({
         id: row.id,
         username: row.username,
         password: row.password,
-        status: validStatus,
+        status: validateSubUserStatus(row.status),
         trafficLimit: row.traffic_limit,
         trafficUsed: row.traffic_used,
         serviceType: row.service_type,
         createdAt: new Date(row.created_at),
         lastChecked: new Date(row.last_checked),
-      };
-    });
+    }));
   }
 
   getActiveSubUser(): DecodoSubUser | null {
@@ -394,16 +383,11 @@ class DatabaseService {
 
     if (!row) return null;
 
-    // Validate status type
-    const status = row.status;
-    const validStatus: 'active' | 'exhausted' | 'error' =
-      status === 'active' || status === 'exhausted' || status === 'error' ? status : 'error';
-
     return {
       id: row.id,
       username: row.username,
       password: row.password,
-      status: validStatus,
+      status: validateSubUserStatus(row.status),
       trafficLimit: row.traffic_limit,
       trafficUsed: row.traffic_used,
       serviceType: row.service_type,

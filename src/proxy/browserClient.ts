@@ -4,38 +4,29 @@ import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import proxyManager from './proxyManager';
 import logger from '../utils/logger';
 import config from '../config/config';
-import { randomUUID } from 'crypto';
 import { ScraperError } from '../api/middleware/errorHandler';
 import { IBrowserClient } from './types';
 import { retryWithBackoff } from '../utils/retry';
+import { BaseProxyClient } from './BaseProxyClient';
+import { TIMEOUT_CONFIG, RETRY_CONFIG } from '../constants/scraping';
 
 // Add stealth plugin to avoid detection
 puppeteerExtra.use(StealthPlugin());
 
-class BrowserClient implements IBrowserClient {
+class BrowserClient extends BaseProxyClient implements IBrowserClient {
   private browser: Browser | null = null;
   private activePage: Page | null = null;
-  private sessionId: string | null = null;
-
-  /**
-   * Generate a session ID for sticky sessions (same IP across requests)
-   */
-  private generateSessionId(): string {
-    return `session_${randomUUID()}`;
-  }
 
   /**
    * Get or create a browser instance with proxy configuration
    */
   private async getBrowser(): Promise<Browser> {
     if (!this.browser || !this.browser.connected) {
-      // Generate a session ID for sticky sessions (same IP across requests)
-      if (!this.sessionId) {
-        this.sessionId = this.generateSessionId();
-      }
+      // Get or create session ID
+      const sessionId = this.getSessionId();
 
       // Get proxy config with formatted username (includes session and country)
-      const proxyConfig = await proxyManager.getProxyConfig({ sessionId: this.sessionId });
+      const proxyConfig = await proxyManager.getProxyConfig({ sessionId });
 
       // Store credentials for page authentication
       const proxyAuth = {
@@ -43,7 +34,7 @@ class BrowserClient implements IBrowserClient {
         password: proxyConfig.password,
       };
 
-      logger.info(`Launching browser with proxy: ${proxyConfig.endpoint}:${proxyConfig.port} (session: ${this.sessionId})`);
+      logger.info(`Launching browser with proxy: ${proxyConfig.endpoint}:${proxyConfig.port} (session: ${sessionId})`);
 
       const launchOptions: any = {
         headless: true,
@@ -127,12 +118,12 @@ class BrowserClient implements IBrowserClient {
         // Navigate with timeout
         await page.goto(url, {
           waitUntil: 'networkidle2',
-          timeout: 60000,
+          timeout: TIMEOUT_CONFIG.BROWSER_NAVIGATION,
         });
 
         // Optionally wait for a specific selector to ensure page is loaded
         if (waitForSelector) {
-          await page.waitForSelector(waitForSelector, { timeout: 10000 });
+          await page.waitForSelector(waitForSelector, { timeout: TIMEOUT_CONFIG.BROWSER_SELECTOR_WAIT });
         }
 
         // Get the HTML content
@@ -146,7 +137,7 @@ class BrowserClient implements IBrowserClient {
           // Wait a bit longer for Cloudflare to resolve
           await page.waitForNavigation({
             waitUntil: 'networkidle2',
-            timeout: 30000
+            timeout: TIMEOUT_CONFIG.CLOUDFLARE_CHALLENGE
           }).catch(() => {
             // If navigation doesn't happen, that's OK - page might have resolved in place
             logger.debug('No navigation after Cloudflare challenge, checking content...');
@@ -170,7 +161,7 @@ class BrowserClient implements IBrowserClient {
         logger.error(`Browser navigation error for ${url}:`, error.message);
         throw error;
       }
-    }, { maxRetries: 2 }); // Fewer retries for browser operations as they're more expensive
+    }, { maxRetries: RETRY_CONFIG.BROWSER_MAX_RETRIES });
   }
 
   /**
@@ -188,8 +179,7 @@ class BrowserClient implements IBrowserClient {
         this.browser = null;
       }
 
-      // Reset session ID to get a new IP on next request
-      this.sessionId = null;
+      this.resetSessionId();
 
       logger.info('Browser client reset - will use new proxy on next request');
     } catch (error) {
@@ -210,13 +200,6 @@ class BrowserClient implements IBrowserClient {
       logger.error('Browser proxy test failed:', error);
       return false;
     }
-  }
-
-  /**
-   * Add delay between requests to avoid rate limiting
-   */
-  async delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   /**
