@@ -20,6 +20,7 @@ const DEFAULT_OPTIONS: Required<RetryOptions> = {
     'ECONNREFUSED',
     'ENETUNREACH',
     'EAI_AGAIN',
+    'PAGE_MISMATCH', // Browser session pollution - retry with fresh page
   ],
 };
 

@@ -157,8 +157,8 @@ class ParfumoScraper {
       await browserClient.delay(getRandomDelay(SCRAPING_DELAYS.DETAILS_MIN, SCRAPING_DELAYS.DETAILS_MAX));
 
       // Get page content and wait for rating containers to appear (indicates JavaScript has fully rendered)
-      // We wait for data-type="durability" which is the longevity rating container
-      const html = await browserClient.getPageContent(fullUrl, '[data-type="durability"]');
+      // We wait for both the rating value and durability selector to ensure full page load
+      const html = await browserClient.getPageContent(fullUrl, '[itemprop="aggregateRating"]');
 
       // Debug: Always save HTML to file for inspection (helps compare with known-good HTML)
       const fs = await import('fs/promises');

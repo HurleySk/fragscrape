@@ -98,6 +98,33 @@ curl http://localhost:3000/api/proxy/test
 curl -X POST http://localhost:3000/api/proxy/rotate
 ```
 
+### Clear Cache
+```bash
+# Clear all cache (perfumes and search results)
+curl -X DELETE http://localhost:3000/api/cache
+
+# Clear only perfume cache
+curl -X DELETE "http://localhost:3000/api/cache?type=perfumes"
+
+# Clear only search cache
+curl -X DELETE "http://localhost:3000/api/cache?type=search"
+
+# Clear only expired cache entries
+curl -X DELETE "http://localhost:3000/api/cache?type=expired"
+
+# Response:
+# {
+#   "success": true,
+#   "data": {
+#     "message": "Cache cleared successfully",
+#     "type": "all",
+#     "perfumesCleared": 42,
+#     "searchesCleared": 15,
+#     "totalCleared": 57
+#   }
+# }
+```
+
 ## Perfume Search & Retrieval
 
 ### Search Perfumes
@@ -192,6 +219,18 @@ async function getPerfumeDetails(brand, name) {
 
   return data.data;
 }
+
+// Clear cache
+async function clearCache(type = 'all') {
+  const response = await fetch(
+    `http://localhost:3000/api/cache?type=${type}`,
+    { method: 'DELETE' }
+  );
+  const data = await response.json();
+
+  console.log(`Cleared ${data.data.totalCleared} cache entries`);
+  return data.data;
+}
 ```
 
 ### Using axios
@@ -236,6 +275,18 @@ async function robustSearch(query, retries = 3) {
       await api.post('/proxy/rotate');
       await new Promise(resolve => setTimeout(resolve, 2000));
     }
+  }
+}
+
+// Clear cache
+async function clearCache(type = 'all') {
+  try {
+    const { data } = await api.delete(`/cache?type=${type}`);
+    console.log(`Cleared ${data.data.totalCleared} cache entries`);
+    return data.data;
+  } catch (error) {
+    console.error('Failed to clear cache:', error.message);
+    throw error;
   }
 }
 ```
@@ -287,6 +338,17 @@ class FragscrapeClient:
 
         response = self.session.get(url, params=params)
         return response.json()
+
+    def clear_cache(self, cache_type='all'):
+        """Clear cache manually"""
+        params = {'type': cache_type}
+        response = self.session.delete(f'{self.base_url}/cache', params=params)
+        result = response.json()
+
+        if result['success']:
+            print(f"Cleared {result['data']['totalCleared']} cache entries")
+
+        return result
 
     def monitor_usage(self, interval=60):
         """Monitor proxy usage continuously"""

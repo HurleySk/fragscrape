@@ -343,21 +343,58 @@ export class HtmlExtractor {
   } {
     const ratings: any = {};
 
-    // Extract main scent rating using structured data (most reliable)
-    const ratingValueText = $('[itemprop="ratingValue"]').first().text().trim();
-    if (ratingValueText) {
-      const ratingValue = parseFloat(ratingValueText);
-      if (!isNaN(ratingValue)) {
-        ratings.scent = ratingValue;
-        logger.debug(`Extracted main rating from structured data: ${ratingValue}`);
-      }
-    }
+    // Extract main scent rating using structured data
+    // If multiple ratings exist (product variants), select the one with highest vote count (main product)
+    let maxVoteCount = 0;
+    let selectedRating: number | null = null;
+    let selectedRatingCount: number | null = null;
 
-    // Extract total ratings count
-    const ratingCountText = $('[itemprop="ratingCount"]').text().trim();
-    const countMatch = ratingCountText.match(/(\d+)\s*Ratings?/i);
-    if (countMatch) {
-      ratings.totalRatings = parseInt(countMatch[1], 10);
+    $('[itemtype="http://schema.org/AggregateRating"]').each((_, elem) => {
+      const $container = $(elem);
+      const ratingValueText = $container.find('[itemprop="ratingValue"]').text().trim();
+      const ratingCountText = $container.find('[itemprop="ratingCount"]').text().trim();
+
+      if (ratingValueText && ratingCountText) {
+        const ratingValue = parseFloat(ratingValueText);
+        const countMatch = ratingCountText.match(/(\d+)/);
+
+        if (!isNaN(ratingValue) && countMatch) {
+          const count = parseInt(countMatch[1].replace(/,/g, ''), 10);
+
+          // Find the year for this variant for logging purposes
+          let variantYear: number | undefined;
+          let $parent = $container.parent();
+          for (let i = 0; i < 10 && $parent.length > 0; i++) {
+            const yearLink = $parent.find('a[href*="/Release_Years/"]').first();
+            if (yearLink.length > 0) {
+              const yearText = yearLink.find('.label_a').text().trim();
+              if (yearText) {
+                const year = parseInt(yearText, 10);
+                if (!isNaN(year) && year > 1900 && year < 2100) {
+                  variantYear = year;
+                  break;
+                }
+              }
+            }
+            $parent = $parent.parent();
+          }
+
+          logger.debug(`Found variant: year=${variantYear || 'unknown'}, rating=${ratingValue}, votes=${count}`);
+
+          // Select the rating with the highest vote count (main product, not variant)
+          if (count > maxVoteCount) {
+            maxVoteCount = count;
+            selectedRating = ratingValue;
+            selectedRatingCount = count;
+          }
+        }
+      }
+    });
+
+    if (selectedRating !== null && selectedRatingCount !== null) {
+      ratings.scent = selectedRating;
+      ratings.totalRatings = selectedRatingCount;
+      logger.debug(`Selected main product rating: ${selectedRating} (${selectedRatingCount} votes - highest count)`);
     }
 
     // Fallback: Try regex extraction for scent rating if structured data extraction failed

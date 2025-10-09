@@ -491,6 +491,45 @@ class DatabaseService {
     }
   }
 
+  clearCache(type: 'all' | 'perfumes' | 'search' | 'expired' = 'all'): { perfumesCleared: number; searchesCleared: number } {
+    if (!this.db) throw new DatabaseError('Database not initialized');
+
+    let perfumesCleared = 0;
+    let searchesCleared = 0;
+
+    if (type === 'expired') {
+      // Clear only expired cache
+      const perfumesStmt = this.db.prepare("DELETE FROM perfumes WHERE cached_until < datetime('now')");
+      const searchStmt = this.db.prepare("DELETE FROM search_cache WHERE cached_until < datetime('now')");
+
+      perfumesCleared = perfumesStmt.run().changes || 0;
+      searchesCleared = searchStmt.run().changes || 0;
+
+      logger.info(`Cleared ${perfumesCleared} expired perfume cache entries and ${searchesCleared} expired search cache entries`);
+    } else if (type === 'perfumes') {
+      // Clear all perfume cache only
+      const stmt = this.db.prepare('DELETE FROM perfumes');
+      perfumesCleared = stmt.run().changes || 0;
+      logger.info(`Cleared all perfume cache: ${perfumesCleared} entries`);
+    } else if (type === 'search') {
+      // Clear all search cache only
+      const stmt = this.db.prepare('DELETE FROM search_cache');
+      searchesCleared = stmt.run().changes || 0;
+      logger.info(`Cleared all search cache: ${searchesCleared} entries`);
+    } else {
+      // Clear all cache (both perfumes and search)
+      const perfumesStmt = this.db.prepare('DELETE FROM perfumes');
+      const searchStmt = this.db.prepare('DELETE FROM search_cache');
+
+      perfumesCleared = perfumesStmt.run().changes || 0;
+      searchesCleared = searchStmt.run().changes || 0;
+
+      logger.info(`Cleared all cache: ${perfumesCleared} perfume entries and ${searchesCleared} search entries`);
+    }
+
+    return { perfumesCleared, searchesCleared };
+  }
+
   close(): void {
     if (this.db) {
       this.db.close();

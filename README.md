@@ -1,4 +1,4 @@
-# Fragscrape API v1.1.2
+# Fragscrape API v1.2.5
 
 A sophisticated web scraping API for perfume and fragrance data from Parfumo and Fragrantica, built with TypeScript, Express, and utilizing Decodo's rotating residential proxies for reliable data extraction.
 
@@ -161,6 +161,21 @@ Parameters:
 ```
 GET /api/brand/{brand}?page=1
 ```
+
+### Cache Management Endpoints
+
+#### Clear Cache
+```
+DELETE /api/cache?type={all|perfumes|search|expired}
+```
+Parameters:
+- `type`: Type of cache to clear (default: `all`)
+  - `all` - Clear all perfume and search cache
+  - `perfumes` - Clear only perfume cache
+  - `search` - Clear only search cache
+  - `expired` - Clear only expired cache entries
+
+Returns statistics about cleared entries.
 
 ### Proxy Management Endpoints
 
@@ -384,7 +399,8 @@ curl -X POST http://localhost:3000/api/proxy/add-subuser \
 Cache and log cleanup:
 - Automatic cleanup runs every 24 hours (configurable via `CLEANUP_INTERVAL_HOURS`)
 - Removes expired cache and request logs older than 30 days (configurable via `LOG_RETENTION_DAYS`)
-- Manual cleanup: Delete `data/fragscrape.db` to clear all data
+- Manual cleanup via API: `DELETE /api/cache?type=all` (see Cache Management Endpoints)
+- Full reset: Delete `data/fragscrape.db` to clear all data including sub-users
 
 ## Contributing
 

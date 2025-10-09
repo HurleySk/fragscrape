@@ -1,6 +1,7 @@
 import { Browser, Page } from 'puppeteer';
 import puppeteerExtra from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import * as cheerio from 'cheerio';
 import proxyManager from './proxyManager';
 import logger from '../utils/logger';
 import config from '../config/config';
@@ -106,6 +107,66 @@ class BrowserClient extends BaseProxyClient implements IBrowserClient {
   }
 
   /**
+   * Validate that the loaded page matches the requested URL
+   * Prevents browser session pollution where wrong pages are loaded
+   */
+  private validatePageContent(html: string, requestedUrl: string): { isValid: boolean; actualUrl?: string; message?: string } {
+    try {
+      const $ = cheerio.load(html);
+
+      // Extract og:url from page metadata
+      const ogUrl = $('meta[property="og:url"]').attr('content');
+
+      if (!ogUrl) {
+        logger.warn('No og:url found in page, cannot validate');
+        return { isValid: true }; // Assume valid if no og:url present
+      }
+
+      // Extract brand and name from both URLs (format: /Perfumes/Brand_Name/perfume_name)
+      const extractBrandAndName = (urlStr: string): { brand: string; name: string } | null => {
+        try {
+          const urlParts = urlStr.split('/');
+          if (urlParts.length < 6) return null;
+
+          const brand = urlParts[4].replace(/_/g, ' ').toLowerCase().trim();
+          const nameWithYear = urlParts[5];
+          // Remove year suffix (e.g., _2015) if present
+          const name = nameWithYear.replace(/_\d{4}$/, '').replace(/_/g, ' ').toLowerCase().trim();
+
+          return { brand, name };
+        } catch (error) {
+          return null;
+        }
+      };
+
+      const requested = extractBrandAndName(requestedUrl);
+      const actual = extractBrandAndName(ogUrl);
+
+      if (!requested || !actual) {
+        logger.warn('Could not extract brand/name from URLs for validation');
+        return { isValid: true }; // Assume valid if we can't parse
+      }
+
+      // Compare brand and name (case-insensitive)
+      const isValid = requested.brand === actual.brand && requested.name === actual.name;
+
+      if (!isValid) {
+        return {
+          isValid: false,
+          actualUrl: ogUrl,
+          message: `Page mismatch! Requested: ${requested.brand}/${requested.name}, Got: ${actual.brand}/${actual.name}`
+        };
+      }
+
+      logger.debug(`Page validation passed: ${requested.brand}/${requested.name}`);
+      return { isValid: true };
+    } catch (error) {
+      logger.error('Error validating page content:', error);
+      return { isValid: true }; // On error, assume valid to avoid false positives
+    }
+  }
+
+  /**
    * Navigate to a URL and return the HTML content with retry logic
    */
   async getPageContent(url: string, waitForSelector?: string): Promise<string> {
@@ -123,7 +184,16 @@ class BrowserClient extends BaseProxyClient implements IBrowserClient {
 
         // Optionally wait for a specific selector to ensure page is loaded
         if (waitForSelector) {
-          await page.waitForSelector(waitForSelector, { timeout: TIMEOUT_CONFIG.BROWSER_SELECTOR_WAIT });
+          try {
+            await page.waitForSelector(waitForSelector, { timeout: TIMEOUT_CONFIG.BROWSER_SELECTOR_WAIT });
+            logger.debug(`Selector found: ${waitForSelector}`);
+          } catch (selectorError) {
+            // Selector didn't appear in time, but page might still be loaded
+            // Log warning and continue - networkidle2 already waited for page load
+            logger.warn(`Selector '${waitForSelector}' not found within timeout, continuing anyway`);
+          }
+          // Add extra delay to let JavaScript finish rendering all content
+          await new Promise(resolve => setTimeout(resolve, 2000));
         }
 
         // Get the HTML content
@@ -152,7 +222,38 @@ class BrowserClient extends BaseProxyClient implements IBrowserClient {
           }
 
           logger.info('Successfully bypassed Cloudflare challenge');
+
+          // Validate page content matches requested URL (for Parfumo perfume URLs)
+          if (url.includes('/Perfumes/')) {
+            const validation = this.validatePageContent(resolvedHtml, url);
+            if (!validation.isValid) {
+              logger.error(`❌ ${validation.message}`);
+              logger.error(`Expected URL: ${url}`);
+              logger.error(`Actual URL: ${validation.actualUrl}`);
+              logger.info('🔄 Resetting entire browser to clear session pollution...');
+              await this.reset();
+              const error: any = new ScraperError('Page content mismatch - browser session polluted', url);
+              error.code = 'PAGE_MISMATCH';
+              throw error;
+            }
+          }
+
           return resolvedHtml;
+        }
+
+        // Validate page content matches requested URL (for Parfumo perfume URLs)
+        if (url.includes('/Perfumes/')) {
+          const validation = this.validatePageContent(html, url);
+          if (!validation.isValid) {
+            logger.error(`❌ ${validation.message}`);
+            logger.error(`Expected URL: ${url}`);
+            logger.error(`Actual URL: ${validation.actualUrl}`);
+            logger.info('🔄 Resetting entire browser to clear session pollution...');
+            await this.reset();
+            const error: any = new ScraperError('Page content mismatch - browser session polluted', url);
+            error.code = 'PAGE_MISMATCH';
+            throw error;
+          }
         }
 
         logger.debug(`Successfully retrieved content from: ${url}`);

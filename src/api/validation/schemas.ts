@@ -98,3 +98,18 @@ export const addSubUserSchema = z.object({
 });
 
 export type AddSubUser = z.infer<typeof addSubUserSchema>;
+
+/**
+ * Clear cache query params validation
+ */
+export const clearCacheQuerySchema = z.object({
+  type: z.string().optional().transform((val) => {
+    if (!val) return 'all';
+    if (!['all', 'perfumes', 'search', 'expired'].includes(val)) {
+      throw new Error('Type must be one of: all, perfumes, search, expired');
+    }
+    return val as 'all' | 'perfumes' | 'search' | 'expired';
+  }),
+});
+
+export type ClearCacheQuery = z.infer<typeof clearCacheQuerySchema>;
