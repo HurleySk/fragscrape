@@ -116,23 +116,214 @@ export class HtmlExtractor {
   }
 
   /**
-   * Extract a rating metric from page text using regex
+   * Extract a rating metric using multiple strategies for robustness
+   *
+   * Strategies (in order of preference):
+   * 1. DOM selectors with context (most reliable)
+   * 2. Separated format with strict context (e.g., "Longevity 6.0 2895 Ratings")
+   * 3. Concatenated format (e.g., "Longevity6.02895 Ratings")
    */
   private extractRatingMetric(
-    pageText: string,
+    $: cheerio.CheerioAPI,
     label: string
   ): { value: number; count: number } | null {
-    const pattern = new RegExp(`${label}[^\\d]*(\\d{1,2}\\.\\d)(\\d+)\\s*Ratings?`, 'i');
-    const match = pageText.match(pattern);
+    // Strategy 1: Try DOM-based extraction with context
+    // Look for rating sections that contain the label and extract structured data
+    const domResult = this.extractRatingFromDOM($, label);
+    if (domResult) {
+      logger.debug(`Extracted rating (DOM): ${label} = ${domResult.value}, count = ${domResult.count}`);
+      return domResult;
+    }
 
-    if (match) {
-      return {
-        value: parseFloat(match[1]),
-        count: parseInt(match[2], 10),
-      };
+    // Strategy 2: Try regex on body text with STRICT separated format
+    // This requires spaces/newlines between components to avoid ambiguity
+    const pageText = $('body').text();
+    const separatedResult = this.extractRatingSeparated(pageText, label);
+    if (separatedResult) {
+      logger.debug(`Extracted rating (separated): ${label} = ${separatedResult.value}, count = ${separatedResult.count}`);
+      return separatedResult;
+    }
+
+    // Strategy 3: Try concatenated format (less reliable, use as last resort)
+    const concatenatedResult = this.extractRatingConcatenated(pageText, label);
+    if (concatenatedResult) {
+      logger.debug(`Extracted rating (concatenated): ${label} = ${concatenatedResult.value}, count = ${concatenatedResult.count}`);
+      return concatenatedResult;
+    }
+
+    logger.debug(`Failed to extract rating for: ${label}`);
+    return null;
+  }
+
+  /**
+   * Extract rating from DOM structure with context
+   * Uses precise data-type selectors to target specific rating sections
+   */
+  private extractRatingFromDOM($: cheerio.CheerioAPI, label: string): { value: number; count: number } | null {
+    // Map labels to data-type attributes
+    // The label parameter may be a regex pattern, so we need to check against possible values
+    const labelToDataType: { [key: string]: string } = {
+      'longevity': 'durability',
+      'sillage': 'sillage',
+      'bottle': 'bottle',
+      'pricing': 'pricing',
+      'value for money': 'pricing',
+      'price-value': 'pricing',
+      'price value': 'pricing',
+    };
+
+    // Extract the actual label from potential regex pattern
+    const normalizedLabel = label.toLowerCase()
+      .replace(/\(\?:/g, '')
+      .replace(/\|/g, ' ')
+      .replace(/\[/g, '')
+      .replace(/\]/g, '')
+      .replace(/\\/g, '')
+      .replace(/-/g, ' ')
+      .trim()
+      .split(' ')[0]; // Get first word for lookup
+
+    const dataType = labelToDataType[normalizedLabel];
+    if (!dataType) {
+      return null;
+    }
+
+    // Find the specific rating container using data-type attribute
+    const container = $(`[data-type="${dataType}"]`);
+    if (container.length === 0) {
+      return null;
+    }
+
+    // Extract value from: <span class="text-lg bold [color]">VALUE</span>
+    const valueSpan = container.find('span.text-lg.bold').first();
+    const valueText = valueSpan.text().trim();
+
+    if (!valueText) {
+      return null;
+    }
+
+    const value = parseFloat(valueText);
+    if (isNaN(value)) {
+      return null;
+    }
+
+    // Extract count from: <span class="lightgrey text-2xs upper">COUNT Ratings</span>
+    const countSpan = container.find('span.lightgrey.text-2xs').first();
+    const countText = countSpan.text().trim();
+    const countMatch = countText.match(/(\d+)\s*Ratings?/i);
+
+    if (!countMatch) {
+      return null;
+    }
+
+    const count = parseInt(countMatch[1].replace(/,/g, ''), 10);
+
+    // Validate before accepting
+    if (this.validateRating(value, count, label)) {
+      return { value, count };
     }
 
     return null;
+  }
+
+  /**
+   * Extract rating using separated format (spaces between components)
+   */
+  private extractRatingSeparated(pageText: string, label: string): { value: number; count: number } | null {
+    const escapedLabel = label.replace(/[-\s]/g, '[-\\s]*');
+
+    // Require at least 2 non-digit chars between rating and count to avoid ambiguity
+    // Format: "Label 8.6 3052 Ratings" or "Label\n8.6\n3052 Ratings"
+    const pattern = new RegExp(
+      `${escapedLabel}[^\\d]+(\\d{1,2}\\.\\d{1,2})[^\\d]{2,}([\\d,]+)\\s*Ratings?`,
+      'i'
+    );
+
+    const match = pageText.match(pattern);
+    if (match) {
+      const value = parseFloat(match[1]);
+      const count = parseInt(match[2].replace(/,/g, ''), 10);
+
+      if (this.validateRating(value, count, label)) {
+        return { value, count };
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Extract rating using concatenated format (last resort)
+   */
+  private extractRatingConcatenated(pageText: string, label: string): { value: number; count: number } | null {
+    const escapedLabel = label.replace(/[-\s]/g, '[-\\s]*');
+
+    // Extract integer part, decimal point, and all following digits
+    const pattern = new RegExp(`${escapedLabel}[^\\d]*(\\d{1,2})\\.(\\d+?)\\s*Ratings?`, 'i');
+    const match = pageText.match(pattern);
+
+    if (match) {
+      const integerPart = match[1];
+      const decimalDigits = match[2];
+
+      // Analyze digit count to determine structure
+      if (decimalDigits.length >= 5) {
+        if (decimalDigits.length === 5) {
+          // Could be: 1-dec + 4-digit count OR 2-dec + 3-digit count
+          const potentialCount = parseInt(decimalDigits.substring(1), 10);
+          if (potentialCount >= 1000) {
+            // 1-decimal + 4-digit count
+            const value = parseFloat(`${integerPart}.${decimalDigits[0]}`);
+            const count = potentialCount;
+            if (this.validateRating(value, count, label)) {
+              return { value, count };
+            }
+          } else {
+            // 2-decimal + 3-digit count
+            const value = parseFloat(`${integerPart}.${decimalDigits.substring(0, 2)}`);
+            const count = parseInt(decimalDigits.substring(2), 10);
+            if (this.validateRating(value, count, label)) {
+              return { value, count };
+            }
+          }
+        } else if (decimalDigits.length >= 6) {
+          // 6+ digits: 2-decimal + 4+ digit count
+          const value = parseFloat(`${integerPart}.${decimalDigits.substring(0, 2)}`);
+          const count = parseInt(decimalDigits.substring(2), 10);
+          if (this.validateRating(value, count, label)) {
+            return { value, count };
+          }
+        }
+      } else if (decimalDigits.length === 4) {
+        // 4 digits: 1-decimal + 3-digit count
+        const value = parseFloat(`${integerPart}.${decimalDigits[0]}`);
+        const count = parseInt(decimalDigits.substring(1), 10);
+        if (this.validateRating(value, count, label)) {
+          return { value, count };
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Validate extracted rating values for sanity
+   */
+  private validateRating(value: number, count: number, label: string): boolean {
+    // Ratings must be between 0 and 10
+    if (value < 0 || value > 10) {
+      logger.warn(`Invalid rating value for ${label}: ${value} (must be 0-10)`);
+      return false;
+    }
+
+    // Count must be positive and reasonable (less than 1 million)
+    if (count <= 0 || count > 1000000) {
+      logger.warn(`Invalid rating count for ${label}: ${count} (must be 1-1000000)`);
+      return false;
+    }
+
+    return true;
   }
 
   /**
@@ -152,6 +343,16 @@ export class HtmlExtractor {
   } {
     const ratings: any = {};
 
+    // Extract main scent rating using structured data (most reliable)
+    const ratingValueText = $('[itemprop="ratingValue"]').first().text().trim();
+    if (ratingValueText) {
+      const ratingValue = parseFloat(ratingValueText);
+      if (!isNaN(ratingValue)) {
+        ratings.scent = ratingValue;
+        logger.debug(`Extracted main rating from structured data: ${ratingValue}`);
+      }
+    }
+
     // Extract total ratings count
     const ratingCountText = $('[itemprop="ratingCount"]').text().trim();
     const countMatch = ratingCountText.match(/(\d+)\s*Ratings?/i);
@@ -159,36 +360,36 @@ export class HtmlExtractor {
       ratings.totalRatings = parseInt(countMatch[1], 10);
     }
 
-    const pageText = $('body').text();
-
-    // Extract each rating dimension
-    const scent = this.extractRatingMetric(pageText, 'Scent');
-    if (scent) {
-      ratings.scent = scent.value;
+    // Fallback: Try regex extraction for scent rating if structured data extraction failed
+    if (!ratings.scent) {
+      const scent = this.extractRatingMetric($, 'Scent');
+      if (scent) {
+        ratings.scent = scent.value;
+      }
     }
 
-    const longevity = this.extractRatingMetric(pageText, 'Longevity');
+    const longevity = this.extractRatingMetric($, 'Longevity');
     if (longevity) {
       ratings.longevity = longevity.value;
       ratings.longevityRatingCount = longevity.count;
       logger.debug(`Extracted rating - label: longevity, value: ${longevity.value}, count: ${longevity.count}`);
     }
 
-    const sillage = this.extractRatingMetric(pageText, 'Sillage');
+    const sillage = this.extractRatingMetric($, 'Sillage');
     if (sillage) {
       ratings.sillage = sillage.value;
       ratings.sillageRatingCount = sillage.count;
       logger.debug(`Extracted rating - label: sillage, value: ${sillage.value}, count: ${sillage.count}`);
     }
 
-    const bottle = this.extractRatingMetric(pageText, 'Bottle');
+    const bottle = this.extractRatingMetric($, 'Bottle');
     if (bottle) {
       ratings.bottle = bottle.value;
       ratings.bottleRatingCount = bottle.count;
       logger.debug(`Extracted rating - label: bottle, value: ${bottle.value}, count: ${bottle.count}`);
     }
 
-    const priceValue = this.extractRatingMetric(pageText, '(?:Value for money|Price[-\\s]*Value|Pricing)');
+    const priceValue = this.extractRatingMetric($, '(?:Value for money|Price[-\\s]*Value|Pricing)');
     if (priceValue) {
       ratings.priceValue = priceValue.value;
       ratings.priceValueRatingCount = priceValue.count;

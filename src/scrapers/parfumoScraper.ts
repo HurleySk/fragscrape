@@ -156,7 +156,19 @@ class ParfumoScraper {
       // Add delay to be respectful
       await browserClient.delay(getRandomDelay(SCRAPING_DELAYS.DETAILS_MIN, SCRAPING_DELAYS.DETAILS_MAX));
 
-      const html = await browserClient.getPageContent(fullUrl);
+      // Get page content and wait for rating containers to appear (indicates JavaScript has fully rendered)
+      // We wait for data-type="durability" which is the longevity rating container
+      const html = await browserClient.getPageContent(fullUrl, '[data-type="durability"]');
+
+      // Debug: Always save HTML to file for inspection (helps compare with known-good HTML)
+      const fs = await import('fs/promises');
+      const brandSlug = fullUrl.split('/')[4];
+      const nameSlug = fullUrl.split('/')[5];
+      const timestamp = Date.now();
+      const debugPath = `./debug_live_${brandSlug}_${nameSlug}_${timestamp}.html`;
+      await fs.writeFile(debugPath, html);
+      logger.info(`💾 Saved live HTML to: ${debugPath}`);
+
       const $ = cheerio.load(html);
 
       // Extract brand and name from URL (most reliable method)
@@ -184,6 +196,19 @@ class ParfumoScraper {
 
       // Extract all rating dimensions
       const ratings = this.htmlExtractor.extractAllRatings($);
+
+      // Debug: Save HTML if rating extraction failed
+      const hasRatingFailures = !ratings.longevity || !ratings.sillage || !ratings.bottle || !ratings.priceValue;
+      if (hasRatingFailures) {
+        const fs = await import('fs/promises');
+        const brandSlug = fullUrl.split('/')[4];
+        const nameSlug = fullUrl.split('/')[5];
+        const timestamp = Date.now();
+        const debugPath = `./debug_failed_${brandSlug}_${nameSlug}_${timestamp}.html`;
+        await fs.writeFile(debugPath, html);
+        logger.warn(`⚠️  Rating extraction failed - HTML saved to: ${debugPath}`);
+        logger.warn(`Missing ratings: ${!ratings.longevity ? 'longevity ' : ''}${!ratings.sillage ? 'sillage ' : ''}${!ratings.bottle ? 'bottle ' : ''}${!ratings.priceValue ? 'priceValue' : ''}`);
+      }
 
       // Extract image
       const imageUrl = this.htmlExtractor.extractMainImage($, this.baseUrl);

@@ -162,7 +162,8 @@ class DecodoClient {
       // For API key auth (v2), traffic is included in the sub-users list
       if (this.usingApiKey) {
         const subUsers = await this.getSubUsers();
-        const subUser = subUsers.find(su => su.id === subUserId || su.username === subUserId);
+        // Use loose equality to handle string/number ID mismatch
+        const subUser = subUsers.find(su => su.id == subUserId || su.username === subUserId);
 
         if (!subUser) {
           throw new NotFoundError(`Sub-user ${subUserId}`);

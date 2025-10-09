@@ -47,7 +47,7 @@ const configSchema = z.object({
     baseUrl: z.string().url().default('https://www.parfumo.com'),
   }),
   cache: z.object({
-    perfumeDurationSeconds: z.number().default(86400), // 24 hours
+    perfumeDurationSeconds: z.number().default(21600), // 6 hours (ratings can change throughout the day)
     searchDurationSeconds: z.number().default(3600),   // 1 hour
   }),
 });
@@ -95,7 +95,7 @@ const config: Config = {
     baseUrl: process.env.SCRAPER_BASE_URL || 'https://www.parfumo.com',
   },
   cache: {
-    perfumeDurationSeconds: parseInt(process.env.CACHE_PERFUME_DURATION_SECONDS || '86400', 10),
+    perfumeDurationSeconds: parseInt(process.env.CACHE_PERFUME_DURATION_SECONDS || '21600', 10),
     searchDurationSeconds: parseInt(process.env.CACHE_SEARCH_DURATION_SECONDS || '3600', 10),
   },
 };
