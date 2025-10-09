@@ -18,6 +18,9 @@ data/
 logs/
 *.log
 
+# Debug files
+debug_*.html
+
 # IDE
 .vscode/
 .idea/

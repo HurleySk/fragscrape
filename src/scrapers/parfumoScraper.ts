@@ -160,14 +160,16 @@ class ParfumoScraper {
       // We wait for both the rating value and durability selector to ensure full page load
       const html = await browserClient.getPageContent(fullUrl, '[itemprop="aggregateRating"]');
 
-      // Debug: Always save HTML to file for inspection (helps compare with known-good HTML)
-      const fs = await import('fs/promises');
-      const brandSlug = fullUrl.split('/')[4];
-      const nameSlug = fullUrl.split('/')[5];
-      const timestamp = Date.now();
-      const debugPath = `./debug_live_${brandSlug}_${nameSlug}_${timestamp}.html`;
-      await fs.writeFile(debugPath, html);
-      logger.info(`💾 Saved live HTML to: ${debugPath}`);
+      // Debug: Save HTML to file for inspection if DEBUG_HTML is enabled
+      if (process.env.DEBUG_HTML === 'true') {
+        const fs = await import('fs/promises');
+        const brandSlug = fullUrl.split('/')[4];
+        const nameSlug = fullUrl.split('/')[5];
+        const timestamp = Date.now();
+        const debugPath = `./debug_live_${brandSlug}_${nameSlug}_${timestamp}.html`;
+        await fs.writeFile(debugPath, html);
+        logger.debug(`💾 Saved live HTML to: ${debugPath}`);
+      }
 
       const $ = cheerio.load(html);
 
@@ -197,17 +199,21 @@ class ParfumoScraper {
       // Extract all rating dimensions
       const ratings = this.htmlExtractor.extractAllRatings($);
 
-      // Debug: Save HTML if rating extraction failed
+      // Debug: Save HTML if rating extraction failed (only when DEBUG_HTML is enabled)
       const hasRatingFailures = !ratings.longevity || !ratings.sillage || !ratings.bottle || !ratings.priceValue;
       if (hasRatingFailures) {
-        const fs = await import('fs/promises');
-        const brandSlug = fullUrl.split('/')[4];
-        const nameSlug = fullUrl.split('/')[5];
-        const timestamp = Date.now();
-        const debugPath = `./debug_failed_${brandSlug}_${nameSlug}_${timestamp}.html`;
-        await fs.writeFile(debugPath, html);
-        logger.warn(`⚠️  Rating extraction failed - HTML saved to: ${debugPath}`);
+        logger.warn(`⚠️  Rating extraction failed`);
         logger.warn(`Missing ratings: ${!ratings.longevity ? 'longevity ' : ''}${!ratings.sillage ? 'sillage ' : ''}${!ratings.bottle ? 'bottle ' : ''}${!ratings.priceValue ? 'priceValue' : ''}`);
+
+        if (process.env.DEBUG_HTML === 'true') {
+          const fs = await import('fs/promises');
+          const brandSlug = fullUrl.split('/')[4];
+          const nameSlug = fullUrl.split('/')[5];
+          const timestamp = Date.now();
+          const debugPath = `./debug_failed_${brandSlug}_${nameSlug}_${timestamp}.html`;
+          await fs.writeFile(debugPath, html);
+          logger.debug(`HTML saved to: ${debugPath}`);
+        }
       }
 
       // Extract image
