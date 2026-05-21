@@ -141,6 +141,28 @@ class DatabaseService {
       }
     }
 
+    // Parfumo user data column migrations
+    const parfumoMigrations = [
+      { column: 'parfumo_scent_rating', type: 'REAL', desc: 'Parfumo scent rating' },
+      { column: 'parfumo_longevity_rating', type: 'REAL', desc: 'Parfumo longevity rating' },
+      { column: 'parfumo_sillage_rating', type: 'REAL', desc: 'Parfumo sillage rating' },
+      { column: 'parfumo_bottle_rating', type: 'REAL', desc: 'Parfumo bottle rating' },
+      { column: 'parfumo_value_rating', type: 'REAL', desc: 'Parfumo value rating' },
+      { column: 'parfumo_review', type: 'TEXT', desc: 'Parfumo review text' },
+      { column: 'parfumo_synced_at', type: 'DATETIME', desc: 'Parfumo last synced' },
+    ];
+
+    for (const migration of parfumoMigrations) {
+      try {
+        this.db.exec(`ALTER TABLE perfume_user_data ADD COLUMN ${migration.column} ${migration.type}`);
+        logger.info(`Added ${migration.column} column to perfume_user_data table`);
+      } catch (error: any) {
+        if (!error.message.includes('duplicate column name')) {
+          logger.debug(`Migration for ${migration.column} failed (may already exist)`);
+        }
+      }
+    }
+
     // Clean up legacy tables
     this.db.exec('DROP TABLE IF EXISTS request_logs');
     this.db.exec('DROP TABLE IF EXISTS subusers');
@@ -205,6 +227,33 @@ class DatabaseService {
       )
     `);
 
+    // Parfumo session table (single row — id always 1)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS parfumo_session (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        cookies TEXT NOT NULL,
+        username TEXT,
+        logged_in_at DATETIME NOT NULL,
+        last_verified_at DATETIME,
+        created_at DATETIME NOT NULL DEFAULT (datetime('now')),
+        updated_at DATETIME NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+
+    // Parfumo sync log
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS parfumo_sync_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        direction TEXT NOT NULL CHECK (direction IN ('push', 'pull')),
+        perfume_id INTEGER REFERENCES perfumes(id) ON DELETE SET NULL,
+        action TEXT NOT NULL,
+        category TEXT,
+        status TEXT NOT NULL CHECK (status IN ('success', 'failed', 'skipped')),
+        error_message TEXT,
+        synced_at DATETIME NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+
     // Migration: drop cached_until column (replaced by tag-based cleanup)
     try {
       const cols = this.db.pragma('table_info(perfumes)') as Array<{ name: string }>;
@@ -224,6 +273,8 @@ class DatabaseService {
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_perfume_tags_perfume ON perfume_tags(perfume_id)');
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_perfume_tags_tag ON perfume_tags(tag)');
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_perfume_user_data_perfume ON perfume_user_data(perfume_id)');
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_sync_log_perfume ON parfumo_sync_log(perfume_id)');
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_sync_log_synced_at ON parfumo_sync_log(synced_at)');
   }
 
   // Perfume methods
