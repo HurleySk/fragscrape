@@ -19,9 +19,6 @@ const configSchema = z.object({
     fileMaxSizeMB: z.number().default(5),
     fileMaxFiles: z.number().default(5),
   }),
-  cleanup: z.object({
-    intervalHours: z.number().default(24),
-  }),
   rateLimit: z.object({
     windowMs: z.number(),
     maxRequests: z.number(),
@@ -55,9 +52,6 @@ const config: Config = {
     level: (process.env.LOG_LEVEL as 'error' | 'warn' | 'info' | 'debug') || 'info',
     fileMaxSizeMB: parseFloat(process.env.LOG_FILE_MAX_SIZE_MB || '5'),
     fileMaxFiles: parseInt(process.env.LOG_FILE_MAX_FILES || '5', 10),
-  },
-  cleanup: {
-    intervalHours: parseFloat(process.env.CLEANUP_INTERVAL_HOURS || '24'),
   },
   rateLimit: {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),

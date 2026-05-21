@@ -105,18 +105,6 @@ const startServer = async () => {
       logger.warn('DECODO_PROXY_URL is not set — proxy requests will fail');
     }
 
-    // Start cleanup interval
-    const cleanupIntervalMs = config.cleanup.intervalHours * 60 * 60 * 1000;
-    logger.info(`Starting cleanup interval: every ${config.cleanup.intervalHours} hours`);
-
-    setInterval(() => {
-      try {
-        database.cleanupExpiredCache();
-      } catch (error) {
-        logger.error('Cleanup error:', error);
-      }
-    }, cleanupIntervalMs);
-
     // Start server
     const port = config.api.port;
     server = app.listen(port, () => {

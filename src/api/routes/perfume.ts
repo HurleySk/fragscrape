@@ -14,7 +14,6 @@ import {
   perfumeByUrlQuerySchema,
   brandParamsSchema,
   brandQuerySchema,
-  clearCacheQuerySchema,
 } from '../validation/schemas';
 
 const router = Router();
@@ -123,25 +122,6 @@ router.get('/brand/:brand', validate({ params: brandParamsSchema, query: brandQu
   const results = await parfumoScraper.getPerfumesByBrand(brand, page);
 
   return sendSuccess(res, results);
-}));
-
-/**
- * Clear cache manually
- * DELETE /api/cache?type=all|perfumes|search|expired
- */
-router.delete('/cache', validate({ query: clearCacheQuerySchema }), asyncHandler(async (req: Request, res: Response) => {
-  const { type } = req.query as unknown as { type: 'all' | 'perfumes' | 'search' | 'expired' };
-
-  logger.info(`Clearing cache: type=${type}`);
-  const result = database.clearCache(type);
-
-  return sendSuccess(res, {
-    message: `Cache cleared successfully`,
-    type,
-    perfumesCleared: result.perfumesCleared,
-    searchesCleared: result.searchesCleared,
-    totalCleared: result.perfumesCleared + result.searchesCleared,
-  });
 }));
 
 export default router;
