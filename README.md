@@ -1,4 +1,4 @@
-# Fragscrape API v2.0.0
+# Fragscrape API v3.0.0
 
 A web scraping API for perfume and fragrance data from Parfumo, built with TypeScript, Express, and Decodo rotating residential proxies. Features saved queries with progress tracking, tagging, and collection management.
 
@@ -9,6 +9,8 @@ A web scraping API for perfume and fragrance data from Parfumo, built with TypeS
 - **Residential Proxy Rotation**: Decodo rotating proxies via a single `DECODO_PROXY_URL`
 - **Data Caching**: SQLite database for caching perfume details and search results
 - **Tag-Based Cleanup**: Delete perfumes you've tagged "pass" — no automatic expiry
+- **Parfumo Account Integration**: Log in to Parfumo, manage collection/wishlist, submit ratings and reviews
+- **Bidirectional Sync**: Push local tags to Parfumo collections, pull Parfumo data locally
 - **Rate Limiting**: Configurable rate limiting to respect target websites
 - **RESTful API**: Clean API endpoints for search, detail, queries, tags, and collections
 
@@ -102,6 +104,34 @@ curl http://localhost:3000/api/tags
 curl -X DELETE http://localhost:3000/api/cleanup
 ```
 
+### Parfumo Account Setup
+
+```bash
+# 1. Set encryption key (32+ characters)
+# Add to .env: PARFUMO_SESSION_KEY=your-secret-key-at-least-32-chars-long
+
+# 2. Log in to Parfumo (opens browser window)
+curl -X POST http://localhost:3000/api/auth/login
+
+# 3. Check session status
+curl http://localhost:3000/api/auth/status
+
+# 4. Add a perfume to your Parfumo wishlist
+curl -X POST http://localhost:3000/api/parfumo/collection \
+  -H "Content-Type: application/json" \
+  -d '{"perfumeId": 5, "category": "wishlist"}'
+
+# 5. Submit a rating
+curl -X PUT http://localhost:3000/api/parfumo/rating \
+  -H "Content-Type: application/json" \
+  -d '{"perfumeId": 5, "scent": 8.5, "longevity": 7}'
+
+# 6. Push all local tags to Parfumo
+curl -X POST http://localhost:3000/api/sync/push \
+  -H "Content-Type: application/json" \
+  -d '{"scope": "all"}'
+```
+
 ## API Endpoints
 
 ### Search & Perfume Data
@@ -154,6 +184,45 @@ curl -X DELETE http://localhost:3000/api/cleanup
 |--------|----------|-------------|
 | GET | `/api/collection?tag={tag}` | Get perfumes by tag (wishlist, collection) |
 | DELETE | `/api/cleanup` | Delete all perfumes tagged "pass" |
+
+### Authentication
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/login` | Launch browser for Parfumo login |
+| GET | `/api/auth/status` | Check session validity |
+| POST | `/api/auth/logout` | Clear stored session |
+
+### Parfumo Collection
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/parfumo/collection` | Add perfume to Parfumo collection |
+| DELETE | `/api/parfumo/collection` | Remove perfume from Parfumo collection |
+| GET | `/api/parfumo/collection` | Get collection info |
+
+### Parfumo Ratings
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| PUT | `/api/parfumo/rating` | Submit/update rating on Parfumo |
+| GET | `/api/parfumo/rating/:perfumeId` | Get your rating from Parfumo |
+
+### Parfumo Reviews
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/parfumo/reviews/:perfumeId` | Get your review from Parfumo |
+| PUT | `/api/parfumo/reviews` | Create/update review on Parfumo |
+| DELETE | `/api/parfumo/reviews/:perfumeId` | Delete review from Parfumo |
+
+### Sync
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/sync/diff` | Preview sync changes |
+| POST | `/api/sync/push` | Push local data to Parfumo |
+| POST | `/api/sync/pull` | Pull Parfumo data locally |
 
 ### System
 
@@ -214,6 +283,9 @@ All configuration is done through environment variables:
 | `BROWSER_EXECUTABLE_PATH` | Custom Chrome/Chromium path | (bundled) |
 | `RATE_LIMIT_WINDOW_MS` | Rate limit window | 900000 (15m) |
 | `RATE_LIMIT_MAX_REQUESTS` | Max requests per window | 100 |
+| `PARFUMO_SESSION_KEY` | AES-256 key for session encryption (32+ chars) | - |
+| `PARFUMO_LOGIN_TIMEOUT_MS` | Login flow timeout | 300000 (5 min) |
+| `PARFUMO_ACTION_TIMEOUT_MS` | Per-action browser timeout | 30000 (30s) |
 
 ## Project Structure
 
