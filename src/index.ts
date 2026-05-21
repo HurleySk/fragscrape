@@ -9,6 +9,11 @@ import perfumeRoutes from './api/routes/perfume';
 import proxyRoutes from './api/routes/proxy';
 import queryRoutes from './api/routes/queries';
 import perfumeDataRoutes, { collectionRouter, tagsRouter, cleanupRouter } from './api/routes/perfumeData';
+import authRoutes from './api/routes/auth';
+import parfumoCollectionRoutes from './api/routes/parfumoCollection';
+import parfumoRatingRoutes from './api/routes/parfumoRating';
+import parfumoReviewRoutes from './api/routes/parfumoReview';
+import syncRoutes from './api/routes/sync';
 import { errorHandler, notFoundHandler } from './api/middleware/errorHandler';
 import { displayStartupBanner } from './utils/banner';
 import { TIMEOUT_CONFIG } from './constants/scraping';
@@ -71,6 +76,11 @@ app.use('/api/perfumes', perfumeDataRoutes);
 app.use('/api/collection', collectionRouter);
 app.use('/api/tags', tagsRouter);
 app.use('/api/cleanup', cleanupRouter);
+app.use('/api/auth', authRoutes);
+app.use('/api/parfumo/collection', parfumoCollectionRoutes);
+app.use('/api/parfumo/rating', parfumoRatingRoutes);
+app.use('/api/parfumo/reviews', parfumoReviewRoutes);
+app.use('/api/sync', syncRoutes);
 
 // Error handlers
 app.use(notFoundHandler);
