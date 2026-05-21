@@ -33,6 +33,12 @@ const configSchema = z.object({
     perfumeDurationSeconds: z.number().default(21600), // 6 hours (ratings can change throughout the day)
     searchDurationSeconds: z.number().default(3600),   // 1 hour
   }),
+  parfumo: z.object({
+    sessionKey: z.string().min(32).optional(),
+    loginTimeoutMs: z.number().default(300000),
+    actionTimeoutMs: z.number().default(30000),
+    sessionVerifyIntervalMs: z.number().default(1800000),
+  }),
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -66,6 +72,12 @@ const config: Config = {
   cache: {
     perfumeDurationSeconds: parseInt(process.env.CACHE_PERFUME_DURATION_SECONDS || '21600', 10),
     searchDurationSeconds: parseInt(process.env.CACHE_SEARCH_DURATION_SECONDS || '3600', 10),
+  },
+  parfumo: {
+    sessionKey: process.env.PARFUMO_SESSION_KEY,
+    loginTimeoutMs: parseInt(process.env.PARFUMO_LOGIN_TIMEOUT_MS || '300000', 10),
+    actionTimeoutMs: parseInt(process.env.PARFUMO_ACTION_TIMEOUT_MS || '30000', 10),
+    sessionVerifyIntervalMs: parseInt(process.env.PARFUMO_SESSION_VERIFY_INTERVAL_MS || '1800000', 10),
   },
 };
 
