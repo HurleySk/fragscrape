@@ -7,6 +7,8 @@ import database from './database/database';
 import { isProxyConfigured } from './proxy/proxyConfig';
 import perfumeRoutes from './api/routes/perfume';
 import proxyRoutes from './api/routes/proxy';
+import queryRoutes from './api/routes/queries';
+import perfumeDataRoutes, { collectionRouter, tagsRouter, cleanupRouter } from './api/routes/perfumeData';
 import { errorHandler, notFoundHandler } from './api/middleware/errorHandler';
 import { displayStartupBanner } from './utils/banner';
 import { TIMEOUT_CONFIG } from './constants/scraping';
@@ -64,6 +66,11 @@ app.get('/health', (_req, res) => {
 // API routes
 app.use('/api', perfumeRoutes);
 app.use('/api/proxy', proxyRoutes);
+app.use('/api/queries', queryRoutes);
+app.use('/api/perfumes', perfumeDataRoutes);
+app.use('/api/collection', collectionRouter);
+app.use('/api/tags', tagsRouter);
+app.use('/api/cleanup', cleanupRouter);
 
 // Error handlers
 app.use(notFoundHandler);
