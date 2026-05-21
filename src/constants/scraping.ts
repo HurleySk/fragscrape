@@ -40,16 +40,8 @@ export const TIMEOUT_CONFIG = {
   // Cloudflare challenge timeout (ms)
   CLOUDFLARE_CHALLENGE: 30000,
 
-  // Decodo API timeout (ms)
-  DECODO_API_TIMEOUT: 10000,
-
   // Graceful shutdown timeout (ms)
   GRACEFUL_SHUTDOWN: 10000,
-};
-
-export const MONITORING_INTERVALS = {
-  // Proxy usage check interval (ms)
-  PROXY_USAGE_CHECK: 5 * 60 * 1000, // 5 minutes
 };
 
 export const RELEVANCE_SCORES = {

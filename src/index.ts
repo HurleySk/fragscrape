@@ -4,7 +4,7 @@ import rateLimit from 'express-rate-limit';
 import config from './config/config';
 import logger from './utils/logger';
 import database from './database/database';
-import proxyManager from './proxy/proxyManager';
+import { isProxyConfigured } from './proxy/proxyConfig';
 import perfumeRoutes from './api/routes/perfume';
 import proxyRoutes from './api/routes/proxy';
 import { errorHandler, notFoundHandler } from './api/middleware/errorHandler';
@@ -27,47 +27,24 @@ const limiter = rateLimit({
 
 app.use('/api', limiter);
 
-// Enhanced health check endpoint
 app.get('/health', (_req, res) => {
   try {
-    // Get proxy statistics
-    const proxyStats = proxyManager.getStatistics();
-
-    // Calculate memory usage
+    const dbOk = database.healthCheck();
     const memUsage = process.memoryUsage();
-
-    // Calculate uptime
     const uptimeSeconds = process.uptime();
     const uptimeHours = Math.floor(uptimeSeconds / 3600);
     const uptimeMinutes = Math.floor((uptimeSeconds % 3600) / 60);
 
-    // Database health check
-    let databaseStatus = 'ok';
-    try {
-      database.getSubUsers(); // Simple query to verify database is responsive
-    } catch (error) {
-      databaseStatus = 'error';
-    }
-
     res.json({
-      status: databaseStatus === 'ok' ? 'healthy' : 'degraded',
+      status: dbOk ? 'healthy' : 'degraded',
       timestamp: new Date(),
       environment: config.api.nodeEnv,
       uptime: {
         seconds: Math.floor(uptimeSeconds),
         readable: `${uptimeHours}h ${uptimeMinutes}m`,
       },
-      database: {
-        status: databaseStatus,
-      },
-      proxy: {
-        totalSubUsers: proxyStats.totalSubUsers,
-        activeSubUsers: proxyStats.activeSubUsers,
-        exhaustedSubUsers: proxyStats.exhaustedSubUsers,
-        currentSubUser: proxyStats.currentSubUser,
-        totalTrafficUsedMB: Math.round(proxyStats.totalTrafficUsedMB),
-        totalTrafficLimitMB: Math.round(proxyStats.totalTrafficLimitMB),
-      },
+      database: { status: dbOk ? 'ok' : 'error' },
+      proxy: { configured: isProxyConfigured() },
       memory: {
         heapUsedMB: Math.round(memUsage.heapUsed / 1024 / 1024),
         heapTotalMB: Math.round(memUsage.heapTotal / 1024 / 1024),
@@ -102,8 +79,6 @@ const gracefulShutdown = async (signal: string) => {
   // Stop accepting new requests
   server?.close(() => {
     try {
-      // Clean up resources
-      proxyManager.stopMonitoring();
       database.close();
 
       logger.info('Graceful shutdown complete');
@@ -124,28 +99,11 @@ const gracefulShutdown = async (signal: string) => {
 // Start server
 const startServer = async () => {
   try {
-    // Initialize database
     await database.initialize();
 
-    // Load existing sub-users
-    await proxyManager.loadSubUsers();
-
-    // Set up proxy manager event listeners
-    proxyManager.on('new-subuser-needed', () => {
-      logger.warn('⚠️  NEW SUB-USER NEEDED - Please create one via /api/proxy/create-subuser');
-      console.log('\n⚠️  ATTENTION: A new Decodo sub-user is needed!');
-      console.log('Please create one by calling: POST /api/proxy/create-subuser\n');
-    });
-
-    proxyManager.on('subuser-near-limit', (subUser) => {
-      const usedMB = subUser.trafficUsed / (1024 * 1024);
-      const limitMB = subUser.trafficLimit / (1024 * 1024);
-      logger.warn(`Sub-user ${subUser.username} approaching limit: ${usedMB.toFixed(2)}/${limitMB}MB`);
-    });
-
-    proxyManager.on('subuser-exhausted', (subUser) => {
-      logger.warn(`Sub-user ${subUser.username} has exhausted its traffic limit`);
-    });
+    if (!isProxyConfigured()) {
+      logger.warn('DECODO_PROXY_URL is not set — proxy requests will fail');
+    }
 
     // Start cleanup interval
     const cleanupIntervalMs = config.cleanup.intervalHours * 60 * 60 * 1000;
@@ -154,7 +112,6 @@ const startServer = async () => {
     setInterval(() => {
       try {
         database.cleanupExpiredCache();
-        database.cleanupOldRequestLogs(config.cleanup.logRetentionDays);
       } catch (error) {
         logger.error('Cleanup error:', error);
       }

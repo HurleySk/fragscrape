@@ -3,9 +3,9 @@ import path from 'path';
 import fs from 'fs/promises';
 import config from '../config/config';
 import logger from '../utils/logger';
-import { Perfume, DecodoSubUser } from '../types';
+import { Perfume } from '../types';
 import { DatabaseError } from '../api/middleware/errorHandler';
-import { validateGender, validateSubUserStatus } from '../utils/validation';
+import { validateGender } from '../utils/validation';
 
 interface DatabaseRow {
   [key: string]: any;
@@ -44,18 +44,6 @@ interface PerfumeRow extends DatabaseRow {
   similar_fragrances: string;
   scraped_at: string;
   cached_until: string;
-}
-
-interface SubUserRow extends DatabaseRow {
-  id: string;
-  username: string;
-  password: string;
-  status: string;
-  traffic_limit: number;
-  traffic_used: number;
-  service_type: string;
-  created_at: string;
-  last_checked: string;
 }
 
 interface SearchCacheRow extends DatabaseRow {
@@ -153,20 +141,9 @@ class DatabaseService {
       }
     }
 
-    // Sub-users table
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS subusers (
-        id TEXT PRIMARY KEY,
-        username TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        status TEXT NOT NULL,
-        traffic_limit INTEGER NOT NULL,
-        traffic_used INTEGER NOT NULL,
-        service_type TEXT NOT NULL,
-        created_at DATETIME NOT NULL,
-        last_checked DATETIME NOT NULL
-      )
-    `);
+    // Clean up legacy tables
+    this.db.exec('DROP TABLE IF EXISTS request_logs');
+    this.db.exec('DROP TABLE IF EXISTS subusers');
 
     // Search cache table
     this.db.exec(`
@@ -176,21 +153,6 @@ class DatabaseService {
         results TEXT NOT NULL,
         cached_at DATETIME NOT NULL,
         cached_until DATETIME NOT NULL
-      )
-    `);
-
-    // Request logs table
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS request_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        url TEXT NOT NULL,
-        method TEXT NOT NULL,
-        status_code INTEGER,
-        response_time INTEGER,
-        error TEXT,
-        subuser_id TEXT,
-        created_at DATETIME NOT NULL,
-        FOREIGN KEY (subuser_id) REFERENCES subusers(id)
       )
     `);
 
@@ -325,77 +287,6 @@ class DatabaseService {
     };
   }
 
-  // Sub-user methods
-
-  saveSubUser(subUser: DecodoSubUser): void {
-    if (!this.db) throw new DatabaseError('Database not initialized');
-
-    const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO subusers (
-        id, username, password, status, traffic_limit, traffic_used,
-        service_type, created_at, last_checked
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    stmt.run(
-      subUser.id,
-      subUser.username,
-      subUser.password,
-      subUser.status,
-      subUser.trafficLimit,
-      subUser.trafficUsed,
-      subUser.serviceType,
-      subUser.createdAt.toISOString(),
-      subUser.lastChecked.toISOString()
-    );
-  }
-
-  getSubUsers(): DecodoSubUser[] {
-    if (!this.db) throw new DatabaseError('Database not initialized');
-
-    const stmt = this.db.prepare('SELECT * FROM subusers ORDER BY created_at DESC');
-    const rows = stmt.all() as SubUserRow[];
-
-    return rows.map(row => ({
-        id: row.id,
-        username: row.username,
-        password: row.password,
-        status: validateSubUserStatus(row.status),
-        trafficLimit: row.traffic_limit,
-        trafficUsed: row.traffic_used,
-        serviceType: row.service_type,
-        createdAt: new Date(row.created_at),
-        lastChecked: new Date(row.last_checked),
-    }));
-  }
-
-  getActiveSubUser(): DecodoSubUser | null {
-    if (!this.db) throw new DatabaseError('Database not initialized');
-
-    const stmt = this.db.prepare(`
-      SELECT * FROM subusers
-      WHERE status = 'active'
-      ORDER BY last_checked DESC
-      LIMIT 1
-    `);
-
-    const row = stmt.get() as SubUserRow | undefined;
-
-    if (!row) return null;
-
-    return {
-      id: row.id,
-      username: row.username,
-      password: row.password,
-      status: validateSubUserStatus(row.status),
-      trafficLimit: row.traffic_limit,
-      trafficUsed: row.traffic_used,
-      serviceType: row.service_type,
-      createdAt: new Date(row.created_at),
-      lastChecked: new Date(row.last_checked),
-    };
-  }
-
   // Search cache methods
 
   getCachedSearch(query: string): unknown {
@@ -433,33 +324,6 @@ class DatabaseService {
     );
   }
 
-  // Request logging
-
-  logRequest(
-    url: string,
-    method: string,
-    statusCode: number | null,
-    responseTime: number,
-    error: string | null,
-    subUserId: string | null
-  ): void {
-    if (!this.db) throw new DatabaseError('Database not initialized');
-
-    const stmt = this.db.prepare(`
-      INSERT INTO request_logs (url, method, status_code, response_time, error, subuser_id, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
-    `);
-
-    stmt.run(
-      url,
-      method,
-      statusCode,
-      responseTime,
-      error,
-      subUserId
-    );
-  }
-
   // Cleanup methods
 
   cleanupExpiredCache(): void {
@@ -473,22 +337,6 @@ class DatabaseService {
 
     const totalDeleted = (perfumesResult.changes || 0) + (searchResult.changes || 0);
     logger.info(`Cleaned up ${totalDeleted} expired cache entries`);
-  }
-
-  cleanupOldRequestLogs(retentionDays: number): void {
-    if (!this.db) throw new DatabaseError('Database not initialized');
-
-    const stmt = this.db.prepare(`
-      DELETE FROM request_logs
-      WHERE created_at < datetime('now', '-${retentionDays} days')
-    `);
-
-    const result = stmt.run();
-    const deletedCount = result.changes || 0;
-
-    if (deletedCount > 0) {
-      logger.info(`Cleaned up ${deletedCount} old request logs (older than ${retentionDays} days)`);
-    }
   }
 
   clearCache(type: 'all' | 'perfumes' | 'search' | 'expired' = 'all'): { perfumesCleared: number; searchesCleared: number } {
@@ -528,6 +376,16 @@ class DatabaseService {
     }
 
     return { perfumesCleared, searchesCleared };
+  }
+
+  healthCheck(): boolean {
+    if (!this.db) return false;
+    try {
+      this.db.prepare('SELECT 1').get();
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   close(): void {

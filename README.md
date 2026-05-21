@@ -1,23 +1,20 @@
-# Fragscrape API v1.2.5
+# Fragscrape API v1.2.8
 
-A sophisticated web scraping API for perfume and fragrance data from Parfumo and Fragrantica, built with TypeScript, Express, and utilizing Decodo's rotating residential proxies for reliable data extraction.
+A web scraping API for perfume and fragrance data from Parfumo, built with TypeScript, Express, and Decodo rotating residential proxies.
 
 ## Features
 
-- **Smart Proxy Management**: Automatic rotation of Decodo residential proxies with sub-user management
-- **Cost Control**: Built-in 1GB traffic limits per sub-user with automatic warnings
-- **Data Caching**: SQLite database for efficient caching and reducing API calls
-- **Automatic Cleanup**: Configurable auto-deletion of old logs and expired cache
+- **Residential Proxy Rotation**: Decodo rotating proxies via a single `DECODO_PROXY_URL`
+- **Data Caching**: SQLite database for caching perfume details and search results
+- **Automatic Cleanup**: Configurable auto-deletion of expired cache
 - **Rate Limiting**: Configurable rate limiting to respect target websites
-- **RESTful API**: Clean, well-documented API endpoints with comprehensive proxy monitoring
+- **RESTful API**: Clean API endpoints for search, detail, and brand lookups
 - **Error Handling**: Comprehensive error handling and logging with file rotation
-- **Real-time Monitoring**: Full proxy and sub-user status via API endpoints
 
 ## Prerequisites
 
 - Node.js v18+ and npm
-- Decodo account with API access (API key or username/password)
-- SQLite3
+- Decodo account with residential proxy access
 
 ## Installation
 
@@ -37,19 +34,12 @@ npm install
 cp .env.example .env
 ```
 
-4. Configure your Decodo authentication in `.env`:
-
-**Option 1: API Key (Recommended)**
+4. Set your Decodo proxy URL in `.env`:
 ```env
-# Get from Decodo dashboard > Settings > API Keys
-DECODO_API_KEY=your_api_key_here
+DECODO_PROXY_URL=http://user-USERNAME-country-us:PASSWORD@gate.decodo.com:7000
 ```
 
-**Option 2: Username/Password**
-```env
-DECODO_USERNAME=your_decodo_username
-DECODO_PASSWORD=your_decodo_password
-```
+Get credentials from your [Decodo dashboard](https://dashboard.decodo.com) under residential proxy settings.
 
 ## Usage
 
@@ -66,69 +56,21 @@ npm run build
 npm start
 ```
 
-### First Time Setup
+### Quick Start
 
-1. Start the server
-2. Set up a Decodo sub-user (choose one):
-
-   **Option A: Create a new sub-user** (recommended for new accounts)
-   ```bash
-   curl -X POST http://localhost:3000/api/proxy/create-subuser
-   ```
-
-   **Option B: Add existing sub-user** (if you already have one in Decodo)
-   ```bash
-   curl -X POST http://localhost:3000/api/proxy/add-subuser \
-     -H "Content-Type: application/json" \
-     -d '{"username": "your_existing_subuser", "password": "their_password"}'
-   ```
-
-3. Test the proxy connection:
 ```bash
+# Test proxy connection
 curl http://localhost:3000/api/proxy/test
-```
 
-### Quick Start Examples
-
-```bash
 # Search for perfumes
 curl "http://localhost:3000/api/search?q=Aventus&limit=10"
 
 # Get specific perfume details
 curl "http://localhost:3000/api/perfume/Creed/Aventus"
 
-# Check current proxy status and usage
-curl http://localhost:3000/api/proxy/status | jq .
-
-# Monitor all sub-users
-curl http://localhost:3000/api/proxy/subusers | jq .
+# Health check
+curl http://localhost:3000/health
 ```
-
-## Perfume Data Fields
-
-Each perfume response includes comprehensive statistics:
-
-**Basic Information**: brand, name, year, url, imageUrl, concentration, gender, description
-
-**Fragrance Notes**: top, heart, and base notes arrays
-
-**Ratings** (with vote counts for confidence):
-- `rating` / `totalRatings` - Overall scent rating
-- `longevity` / `longevityRatingCount` - How long the fragrance lasts
-- `sillage` / `sillageRatingCount` - Projection/how far the scent travels
-- `bottleRating` / `bottleRatingCount` - Bottle design quality
-- `priceValue` / `priceValueRatingCount` - Value for money
-
-**Community Engagement**:
-- `reviewCount` - Number of in-depth reviews
-- `statementCount` - Number of user statements/comments
-- `photoCount` - Number of community-uploaded photos
-
-**Rankings**:
-- `rank` - Position in category (e.g., #4)
-- `rankCategory` - Category ranked in (e.g., "Men's Perfume")
-
-**Additional**: perfumer, similarFragrances, scrapedAt
 
 ## API Endpoints
 
@@ -154,145 +96,53 @@ Parameters:
 POST /api/perfume/by-url?cache=true
 Body: { "url": "https://www.parfumo.com/..." }
 ```
-Parameters:
-- `cache`: Query parameter, set to `false` to bypass cache (default: `true`)
 
 #### Get Perfumes by Brand
 ```
 GET /api/brand/{brand}?page=1
 ```
 
-### Cache Management Endpoints
+### Cache Management
 
 #### Clear Cache
 ```
 DELETE /api/cache?type={all|perfumes|search|expired}
 ```
-Parameters:
-- `type`: Type of cache to clear (default: `all`)
-  - `all` - Clear all perfume and search cache
-  - `perfumes` - Clear only perfume cache
-  - `search` - Clear only search cache
-  - `expired` - Clear only expired cache entries
 
-Returns statistics about cleared entries.
-
-### Proxy Management Endpoints
-
-#### Get Proxy Status
-```
-GET /api/proxy/status
-```
-
-#### Create Sub-User
-```
-POST /api/proxy/create-subuser
-```
+### Proxy
 
 #### Test Connection
 ```
 GET /api/proxy/test
 ```
 
-#### Rotate Proxy
-```
-POST /api/proxy/rotate
-```
+### Health
 
-#### List Sub-Users
+#### Health Check
 ```
-GET /api/proxy/subusers
+GET /health
 ```
 
-#### Add Existing Sub-User
-```
-POST /api/proxy/add-subuser
-Body: { "username": "existing_user", "password": "their_password" }
-```
+## Perfume Data Fields
 
-Adds an existing Decodo sub-user to the local database. Useful for:
-- Importing sub-users created outside the API
-- Recovering from database loss
-- Managing pre-existing sub-users
+Each perfume response includes:
 
-Response includes current traffic usage, status, and all sub-user details.
+**Basic Information**: brand, name, year, url, imageUrl, concentration, gender, description
 
-**Example:**
-```bash
-curl -X POST http://localhost:3000/api/proxy/add-subuser \
-  -H "Content-Type: application/json" \
-  -d '{
-    "username": "fragscrape_1234567890_abc",
-    "password": "SecureP@ssw0rd"
-  }'
-```
+**Fragrance Notes**: top, heart, and base notes arrays
 
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "id": "12345",
-    "username": "fragscrape_1234567890_abc",
-    "status": "active",
-    "trafficUsedMB": "123.45",
-    "trafficLimitMB": "1024.00",
-    "usagePercent": "12.1",
-    "serviceType": "residential",
-    "createdAt": "2024-01-15T10:30:00.000Z",
-    "lastChecked": "2025-10-06T..."
-  }
-}
-```
+**Ratings** (with vote counts):
+- `rating` / `totalRatings` - Overall scent rating
+- `longevity` / `longevityRatingCount` - How long the fragrance lasts
+- `sillage` / `sillageRatingCount` - Projection strength
+- `bottleRating` / `bottleRatingCount` - Bottle design quality
+- `priceValue` / `priceValueRatingCount` - Value for money
 
-## Authentication Methods
+**Community**: reviewCount, statementCount, photoCount
 
-### API Key Authentication (Recommended)
+**Rankings**: rank, rankCategory
 
-1. Log into your [Decodo dashboard](https://dashboard.decodo.com)
-2. Navigate to Settings > API Keys
-3. Create a new API key and save it immediately (you won't see it again)
-4. Set `DECODO_API_KEY` in your `.env` file
-
-Benefits:
-- Simpler setup - no auth endpoint required
-- Better security - can be rotated easily
-- Direct authentication with every request
-
-### Username/Password Authentication
-
-Traditional method using Decodo account credentials:
-1. Set `DECODO_USERNAME` and `DECODO_PASSWORD` in `.env`
-2. The API will authenticate and obtain a session token
-3. Token is used for subsequent requests
-
-Note: Either API key OR username/password must be provided.
-
-## Monitoring via API
-
-Monitor your proxy status and sub-users using these API endpoints:
-
-```bash
-# Get comprehensive proxy status and all sub-users
-curl http://localhost:3000/api/proxy/status
-
-# List sub-users with detailed usage
-curl http://localhost:3000/api/proxy/subusers
-
-# Test proxy connection
-curl http://localhost:3000/api/proxy/test
-
-# Create new sub-user (1GB limit)
-curl -X POST http://localhost:3000/api/proxy/create-subuser
-
-# Add existing sub-user to database
-curl -X POST http://localhost:3000/api/proxy/add-subuser \
-  -H "Content-Type: application/json" \
-  -d '{"username": "existing_user", "password": "their_password"}'
-
-# Force rotate to different proxy
-curl -X POST http://localhost:3000/api/proxy/rotate
-```
+**Additional**: perfumer, similarFragrances, scrapedAt
 
 ## Configuration
 
@@ -300,24 +150,19 @@ All configuration is done through environment variables:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
+| `DECODO_PROXY_URL` | Full proxy URL with credentials | - |
 | `PORT` | API server port | 3000 |
 | `NODE_ENV` | Environment mode | development |
-| `DECODO_API_URL` | Decodo API endpoint | https://api.decodo.com/v1 |
-| `DECODO_API_KEY` | API key for authentication (recommended) | - |
-| `DECODO_USERNAME` | Username for legacy auth | - |
-| `DECODO_PASSWORD` | Password for legacy auth | - |
-| `DECODO_PROXY_ENDPOINT` | Proxy server endpoint | gate.decodo.com |
-| `DECODO_PROXY_PORT` | Proxy server port | 7000 |
 | `DATABASE_PATH` | SQLite database path | ./data/fragscrape.db |
 | `CACHE_PERFUME_DURATION_SECONDS` | Cache duration for perfume details | 86400 (24h) |
 | `CACHE_SEARCH_DURATION_SECONDS` | Cache duration for search results | 3600 (1h) |
 | `LOG_LEVEL` | Logging level (error/warn/info/debug) | info |
 | `LOG_FILE_MAX_SIZE_MB` | Max size per log file | 5 |
 | `LOG_FILE_MAX_FILES` | Number of rotated log files to keep | 5 |
-| `LOG_RETENTION_DAYS` | Keep database request logs for N days | 30 |
-| `CLEANUP_INTERVAL_HOURS` | Run cleanup every N hours | 24 |
-| `SUB_USER_TRAFFIC_LIMIT_GB` | Traffic limit per sub-user | 1 |
-| `SUB_USER_WARNING_THRESHOLD_MB` | Warning threshold | 900 |
+| `CLEANUP_INTERVAL_HOURS` | Run cache cleanup every N hours | 24 |
+| `BROWSER_EXECUTABLE_PATH` | Custom Chrome/Chromium path | (bundled) |
+| `RATE_LIMIT_WINDOW_MS` | Rate limit window | 900000 (15m) |
+| `RATE_LIMIT_MAX_REQUESTS` | Max requests per window | 100 |
 
 ## Project Structure
 
@@ -326,89 +171,45 @@ fragscrape/
 ├── src/
 │   ├── api/              # API routes and middleware
 │   │   ├── routes/       # Route handlers
-│   │   └── middleware/   # Express middleware
+│   │   ├── middleware/    # Express middleware
+│   │   └── validation/   # Zod schemas
 │   ├── scrapers/         # Web scraping logic
-│   ├── proxy/            # Proxy management
-│   ├── database/         # Database layer
+│   ├── proxy/            # Proxy configuration and clients
+│   ├── database/         # SQLite layer
 │   ├── types/            # TypeScript type definitions
 │   ├── utils/            # Utility functions
+│   ├── constants/        # Scraping constants
 │   └── config/           # Configuration
 ├── tests/                # Test files
 ├── logs/                 # Application logs
 └── data/                 # SQLite database
 ```
 
-## Sub-User Management
-
-The API provides flexible Decodo sub-user management to control costs:
-
-1. **Creation Options**:
-   - Create new sub-users via API
-   - Import existing sub-users from your Decodo account
-2. **Usage Monitoring**: Tracks traffic usage in real-time
-3. **Warning System**: Alerts at 900MB usage (configurable)
-4. **Automatic Rotation**: Switches when limit approached
-5. **Cost Control**: Each sub-user limited to 1GB (configurable)
-6. **Status Tracking**: Real-time status (active/exhausted/error)
-
 ## Error Handling
 
 - Comprehensive error logging with Winston
-- Graceful error recovery
-- Automatic proxy rotation on failures
+- Automatic proxy session reset on 403 errors
 - Request retry with exponential backoff
+- Cloudflare challenge detection and bypass
+- Page content validation to detect session pollution
 
 ## Testing
 
-Run tests:
 ```bash
 npm test
 ```
 
-## Security Considerations
-
-- Never expose Decodo credentials
-- Use environment variables for sensitive data
-- Implement API key authentication for production
-- Enable HTTPS in production
-- Regularly rotate sub-users
-
 ## Troubleshooting
 
-### No Active Sub-Users
-Create a new sub-user or add an existing one:
-
-**Create new:**
-```bash
-curl -X POST http://localhost:3000/api/proxy/create-subuser
-```
-
-**Add existing:**
-```bash
-curl -X POST http://localhost:3000/api/proxy/add-subuser \
-  -H "Content-Type: application/json" \
-  -d '{"username": "your_user", "password": "your_password"}'
-```
-
 ### Proxy Connection Failed
-1. Check Decodo credentials in `.env`
-2. Verify sub-user has available traffic
-3. Test connection: `GET /api/proxy/test`
+1. Check `DECODO_PROXY_URL` in `.env`
+2. Test connection: `GET /api/proxy/test`
+3. Verify credentials on the [Decodo dashboard](https://dashboard.decodo.com)
 
 ### Cache Issues
-Cache and log cleanup:
 - Automatic cleanup runs every 24 hours (configurable via `CLEANUP_INTERVAL_HOURS`)
-- Removes expired cache and request logs older than 30 days (configurable via `LOG_RETENTION_DAYS`)
-- Manual cleanup via API: `DELETE /api/cache?type=all` (see Cache Management Endpoints)
-- Full reset: Delete `data/fragscrape.db` to clear all data including sub-users
-
-## Contributing
-
-1. Fork the repository
-2. Create feature branch
-3. Commit changes
-4. Push to branch
-5. Open pull request
+- Manual cleanup: `DELETE /api/cache?type=all`
+- Full reset: Delete `data/fragscrape.db`
 
 ## License
 
@@ -416,4 +217,4 @@ MIT
 
 ## Disclaimer
 
-This tool is for educational and research purposes only. Always respect website terms of service and robots.txt files. Use responsibly and ethically.
+This tool is for educational and research purposes only. Always respect website terms of service and robots.txt files.

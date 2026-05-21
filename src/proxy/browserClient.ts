@@ -2,7 +2,7 @@ import { Browser, Page } from 'puppeteer';
 import puppeteerExtra from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import * as cheerio from 'cheerio';
-import proxyManager from './proxyManager';
+import { getProxyConfig } from './proxyConfig';
 import logger from '../utils/logger';
 import config from '../config/config';
 import { ScraperError } from '../api/middleware/errorHandler';
@@ -23,11 +23,8 @@ class BrowserClient extends BaseProxyClient implements IBrowserClient {
    */
   private async getBrowser(): Promise<Browser> {
     if (!this.browser || !this.browser.connected) {
-      // Get or create session ID
       const sessionId = this.getSessionId();
-
-      // Get proxy config with formatted username (includes session and country)
-      const proxyConfig = await proxyManager.getProxyConfig({ sessionId });
+      const proxyConfig = getProxyConfig(sessionId);
 
       // Store credentials for page authentication
       const proxyAuth = {

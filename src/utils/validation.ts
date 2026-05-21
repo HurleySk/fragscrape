@@ -43,16 +43,6 @@ export function validateGender(
 }
 
 /**
- * Validates sub-user status
- */
-export function validateSubUserStatus(
-  status: string | null | undefined
-): 'active' | 'exhausted' | 'error' {
-  const result = validateEnum(status, ['active', 'exhausted', 'error'] as const, 'error');
-  return result || 'error';
-}
-
-/**
  * Parses a number from a string, returns undefined if invalid
  */
 export function parseNumber(value: unknown): number | undefined {

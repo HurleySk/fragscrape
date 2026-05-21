@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
-import proxyManager from './proxyManager';
+import { getProxyConfig } from './proxyConfig';
 import logger from '../utils/logger';
 import { ProxyError, RateLimitError } from '../api/middleware/errorHandler';
 import { IHttpClient } from './types';
@@ -14,11 +14,8 @@ class HttpClient extends BaseProxyClient implements IHttpClient {
    * Create an axios instance with proxy configuration
    */
   private async createAxiosInstance(): Promise<AxiosInstance> {
-    // Get or create session ID
     const sessionId = this.getSessionId();
-
-    // Get proxy config with formatted username (includes session and country)
-    const proxyConfig = await proxyManager.getProxyConfig({ sessionId });
+    const proxyConfig = getProxyConfig(sessionId);
 
     const axiosConfig: AxiosRequestConfig = {
       timeout: TIMEOUT_CONFIG.HTTP_TIMEOUT,
