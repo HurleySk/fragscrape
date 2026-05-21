@@ -110,7 +110,6 @@ class DatabaseService {
         perfumer TEXT,
         similar_fragrances TEXT,
         scraped_at DATETIME NOT NULL,
-        cached_until DATETIME NOT NULL,
         UNIQUE(brand, name, year)
       )
     `);
@@ -220,7 +219,6 @@ class DatabaseService {
     // Create indexes
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_perfumes_brand ON perfumes(brand)');
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_search_query ON search_cache(query)');
-    this.db.exec('CREATE INDEX IF NOT EXISTS idx_search_cached_until ON search_cache(cached_until)');
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_query_items_query ON query_items(query_id)');
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_query_items_perfume ON query_items(perfume_id)');
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_perfume_tags_perfume ON perfume_tags(perfume_id)');
@@ -386,21 +384,17 @@ class DatabaseService {
     return JSON.parse(row.results);
   }
 
-  saveSearchCache(query: string, results: unknown, cacheDuration?: number): void {
+  saveSearchCache(query: string, results: unknown): void {
     if (!this.db) throw new DatabaseError('Database not initialized');
 
-    const duration = cacheDuration ?? config.cache.searchDurationSeconds;
-    const cachedUntil = new Date(Date.now() + duration * 1000);
-
     const stmt = this.db.prepare(`
-      INSERT INTO search_cache (query, results, cached_at, cached_until)
-      VALUES (?, ?, datetime('now'), ?)
+      INSERT INTO search_cache (query, results, cached_at)
+      VALUES (?, ?, datetime('now'))
     `);
 
     stmt.run(
       query,
-      JSON.stringify(results),
-      cachedUntil.toISOString()
+      JSON.stringify(results)
     );
   }
 

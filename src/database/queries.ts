@@ -11,21 +11,22 @@ export class QueryDatabase {
       INSERT INTO saved_queries (query, name)
       VALUES (?, ?)
     `);
-    const result = insertQuery.run(query, name);
-    const queryId = Number(result.lastInsertRowid);
 
     const insertItem = this.db.prepare(`
       INSERT INTO query_items (query_id, perfume_id, position)
       VALUES (?, ?, ?)
     `);
 
-    const insertItems = this.db.transaction((ids: number[]) => {
-      for (let i = 0; i < ids.length; i++) {
-        insertItem.run(queryId, ids[i], i);
+    const create = this.db.transaction(() => {
+      const result = insertQuery.run(query, name);
+      const queryId = Number(result.lastInsertRowid);
+      for (let i = 0; i < perfumeIds.length; i++) {
+        insertItem.run(queryId, perfumeIds[i], i);
       }
+      return queryId;
     });
-    insertItems(perfumeIds);
 
+    const queryId = create();
     return this.getSavedQuery(queryId)!;
   }
 
@@ -47,8 +48,8 @@ export class QueryDatabase {
       SELECT
         sq.*,
         COUNT(qi.id) as total_items,
-        SUM(CASE WHEN qi.reviewed = 1 THEN 1 ELSE 0 END) as reviewed_count,
-        SUM(CASE WHEN qi.skipped = 1 THEN 1 ELSE 0 END) as skipped_count
+        COALESCE(SUM(CASE WHEN qi.reviewed = 1 THEN 1 ELSE 0 END), 0) as reviewed_count,
+        COALESCE(SUM(CASE WHEN qi.skipped = 1 THEN 1 ELSE 0 END), 0) as skipped_count
       FROM saved_queries sq
       LEFT JOIN query_items qi ON qi.query_id = sq.id
       GROUP BY sq.id

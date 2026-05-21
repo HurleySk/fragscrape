@@ -126,6 +126,10 @@ router.post('/:id/refresh', validate({ params: queryIdParamsSchema }), asyncHand
     }
   }
 
+  if (perfumeIds.length === 0) {
+    throw new ValidationError('Refresh returned no results — items unchanged');
+  }
+
   queryDb.refreshQueryItems(id, perfumeIds);
   return sendSuccess(res, queryDb.getSavedQuery(id));
 }));
