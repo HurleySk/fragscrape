@@ -1,13 +1,11 @@
 import { Router, Request, Response } from 'express';
-import config from '../../config/config';
 import database from '../../database/database';
 import { getQueryDb } from '../../database/queries';
 import { getParfumoDb } from '../../database/parfumoDb';
-import { asyncHandler, NotFoundError, SessionNotConfiguredError } from '../middleware/errorHandler';
+import { asyncHandler, NotFoundError } from '../middleware/errorHandler';
 import { validate } from '../middleware/validate';
 import { sendSuccess } from '../../utils/apiResponse';
 import { collectionActionSchema } from '../validation/parfumoSchemas';
-import { SessionManager } from '../../auth/sessionManager';
 import { AuthBrowserClient } from '../../auth/authBrowserClient';
 import { addToCollection, removeFromCollection } from '../../auth/parfumoActions';
 import { CATEGORY_TAG_MAP, ParfumoCategory } from '../../types/parfumo';
@@ -15,10 +13,7 @@ import { CATEGORY_TAG_MAP, ParfumoCategory } from '../../types/parfumo';
 const router = Router();
 
 function getAuthClient(): AuthBrowserClient {
-  const key = config.parfumo.sessionKey;
-  if (!key) throw new SessionNotConfiguredError();
-  const sessionManager = new SessionManager(getParfumoDb(), key);
-  return new AuthBrowserClient(sessionManager);
+  return new AuthBrowserClient();
 }
 
 router.post('/', validate({ body: collectionActionSchema }), asyncHandler(async (req: Request, res: Response) => {
@@ -84,20 +79,8 @@ router.delete('/', validate({ body: collectionActionSchema }), asyncHandler(asyn
 }));
 
 router.get('/', asyncHandler(async (_req: Request, res: Response) => {
-  const key = config.parfumo.sessionKey;
-  if (!key) throw new SessionNotConfiguredError();
-
-  const parfumoDb = getParfumoDb();
-  const sessionManager = new SessionManager(parfumoDb, key);
-  const session = sessionManager.loadSession();
-
-  if (!session || !session.username) {
-    return sendSuccess(res, { collections: {}, message: 'Not logged in or username unknown' });
-  }
-
   return sendSuccess(res, {
-    message: 'Collection pull available via POST /api/sync/pull?scope=collections',
-    username: session.username,
+    message: 'Collection pull available via POST /api/sync/pull?scope=collections. Use POST/DELETE to add/remove from collections.',
   });
 }));
 

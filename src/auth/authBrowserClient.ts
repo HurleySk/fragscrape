@@ -1,60 +1,53 @@
-import { Browser, Page, CookieParam } from 'puppeteer';
+import { Browser, Page } from 'puppeteer';
 import puppeteerExtra from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import path from 'path';
 import config from '../config/config';
 import logger from '../utils/logger';
-import { SessionExpiredError, ParfumoUIError, SessionNotConfiguredError } from '../api/middleware/errorHandler';
-import { SessionManager } from './sessionManager';
+import { SessionExpiredError, ParfumoUIError } from '../api/middleware/errorHandler';
 import { PARFUMO_SELECTORS, PARFUMO_URLS } from '../constants/parfumoSelectors';
 
 puppeteerExtra.use(StealthPlugin());
+
+const PROFILE_DIR = path.resolve(config.database.path, '..', 'chrome-profile');
 
 export class AuthBrowserClient {
   private browser: Browser | null = null;
   private page: Page | null = null;
 
-  constructor(
-    private sessionManager: SessionManager
-  ) {}
-
-  private getSessionKey(): string {
-    const key = config.parfumo.sessionKey;
-    if (!key) throw new SessionNotConfiguredError();
-    return key;
+  private baseLaunchOptions(): any {
+    const opts: any = {
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        `--user-data-dir=${PROFILE_DIR}`,
+      ],
+    };
+    if (config.browser.executablePath) {
+      opts.executablePath = config.browser.executablePath;
+    }
+    return opts;
   }
 
   async launchLoginBrowser(): Promise<{ username: string | null }> {
-    this.getSessionKey();
-
     await this.closeBrowser();
 
     logger.info('Launching visible browser for Parfumo login...');
 
-    const launchOptions: any = {
+    this.browser = await puppeteerExtra.launch({
+      ...this.baseLaunchOptions(),
       headless: false,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--window-size=1280x800',
-      ],
       defaultViewport: { width: 1280, height: 800 },
-    };
-
-    if (config.browser.executablePath) {
-      launchOptions.executablePath = config.browser.executablePath;
-    }
-
-    this.browser = await puppeteerExtra.launch(launchOptions);
+      args: [...this.baseLaunchOptions().args, '--window-size=1280,800'],
+    });
     this.page = await this.browser.newPage();
-
-    await this.page.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    );
 
     await this.page.goto(PARFUMO_URLS.login, {
       waitUntil: 'networkidle2',
-      timeout: 30000,
+      timeout: 60000,
     });
+
+    await this.dismissCookieConsent();
 
     logger.info('Waiting for user to log in (timeout: 5 minutes)...');
 
@@ -70,11 +63,6 @@ export class AuthBrowserClient {
           loggedIn = true;
           break;
         }
-        const loginForm = await this.page.$(PARFUMO_SELECTORS.login.form);
-        if (!loginForm) {
-          loggedIn = true;
-          break;
-        }
       } catch {
         // Page may have navigated, continue polling
       }
@@ -86,9 +74,6 @@ export class AuthBrowserClient {
       throw new ParfumoUIError('Login timed out — user did not complete login within the timeout period');
     }
 
-    const cookies = await this.page.cookies();
-    logger.info(`Captured ${cookies.length} cookies from Parfumo`);
-
     let username: string | null = null;
     try {
       const profileLink = await this.page.$(PARFUMO_SELECTORS.login.profileIndicator);
@@ -99,61 +84,30 @@ export class AuthBrowserClient {
       logger.warn('Could not extract username from page');
     }
 
-    const cookieData = cookies.map(c => ({
-      name: c.name,
-      value: c.value,
-      domain: c.domain,
-      path: c.path,
-      expires: c.expires,
-      httpOnly: c.httpOnly,
-      secure: c.secure,
-      sameSite: c.sameSite,
-    }));
-
-    this.sessionManager.saveSession(cookieData, username);
-    logger.info(`Session saved for user: ${username || 'unknown'}`);
-
+    logger.info(`Login successful for user: ${username || 'unknown'}`);
     await this.closeBrowser();
 
     return { username };
   }
 
   async getAuthenticatedPage(url: string): Promise<{ page: Page; browser: Browser }> {
-    const session = this.sessionManager.loadSession();
-    if (!session) throw new SessionExpiredError();
-
     await this.closeBrowser();
 
-    const launchOptions: any = {
+    this.browser = await puppeteerExtra.launch({
+      ...this.baseLaunchOptions(),
       headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--window-size=1920x1080',
-      ],
       defaultViewport: { width: 1920, height: 1080 },
-    };
-
-    if (config.browser.executablePath) {
-      launchOptions.executablePath = config.browser.executablePath;
-    }
-
-    this.browser = await puppeteerExtra.launch(launchOptions);
+    });
     this.page = await this.browser.newPage();
-
-    await this.page.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    );
-
-    await this.page.setCookie(...session.cookies as CookieParam[]);
 
     const timeout = config.parfumo.actionTimeoutMs;
 
     await this.page.goto(url, {
       waitUntil: 'networkidle2',
-      timeout,
+      timeout: Math.max(timeout, 60000),
     });
+
+    await this.dismissCookieConsent();
 
     const profileLink = await this.page.$(PARFUMO_SELECTORS.login.profileIndicator);
     if (!profileLink) {
@@ -168,18 +122,40 @@ export class AuthBrowserClient {
     try {
       const { page } = await this.getAuthenticatedPage(PARFUMO_URLS.login);
       const profileEl = await page.$(PARFUMO_SELECTORS.login.profileIndicator);
-      const isValid = profileEl !== null;
-
-      if (isValid) {
-        this.sessionManager.markVerified();
-      }
-
       await this.closeBrowser();
-      return isValid;
+      return profileEl !== null;
     } catch (error) {
       await this.closeBrowser();
       if (error instanceof SessionExpiredError) return false;
       throw error;
+    }
+  }
+
+  private async dismissCookieConsent(): Promise<void> {
+    if (!this.page) return;
+    try {
+      const iframeSelector = 'iframe[id^="sp_message_iframe"]';
+      const iframeEl = await this.page.$(iframeSelector);
+      if (!iframeEl) return;
+
+      const frame = await iframeEl.contentFrame();
+      if (!frame) return;
+
+      const acceptSelectors = [
+        'button[title="Accept"]',
+        'button.sp_choice_type_11',
+      ];
+      for (const sel of acceptSelectors) {
+        try {
+          await frame.waitForSelector(sel, { timeout: 3000 });
+          await frame.click(sel);
+          logger.debug('Dismissed cookie consent popup');
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return;
+        } catch { /* try next */ }
+      }
+    } catch {
+      logger.debug('No cookie consent popup found');
     }
   }
 

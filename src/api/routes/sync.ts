@@ -1,14 +1,13 @@
 import { Router, Request, Response } from 'express';
-import config from '../../config/config';
 import database from '../../database/database';
 import { getQueryDb } from '../../database/queries';
 import { getParfumoDb } from '../../database/parfumoDb';
 import logger from '../../utils/logger';
-import { asyncHandler, SessionNotConfiguredError } from '../middleware/errorHandler';
+import { asyncHandler } from '../middleware/errorHandler';
 import { validate } from '../middleware/validate';
 import { sendSuccess } from '../../utils/apiResponse';
 import { syncScopeSchema } from '../validation/parfumoSchemas';
-import { SessionManager } from '../../auth/sessionManager';
+
 import { AuthBrowserClient } from '../../auth/authBrowserClient';
 import { addToCollection, submitRating } from '../../auth/parfumoActions';
 import { TAG_CATEGORY_MAP, SyncDiff, SyncDiffItem, SyncResult, ParfumoCategory } from '../../types/parfumo';
@@ -16,10 +15,7 @@ import { TAG_CATEGORY_MAP, SyncDiff, SyncDiffItem, SyncResult, ParfumoCategory }
 const router = Router();
 
 function getAuthClient(): AuthBrowserClient {
-  const key = config.parfumo.sessionKey;
-  if (!key) throw new SessionNotConfiguredError();
-  const sessionManager = new SessionManager(getParfumoDb(), key);
-  return new AuthBrowserClient(sessionManager);
+  return new AuthBrowserClient();
 }
 
 function buildCollectionPushDiff(): SyncDiffItem[] {

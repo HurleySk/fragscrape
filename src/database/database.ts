@@ -173,8 +173,7 @@ class DatabaseService {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         query TEXT NOT NULL,
         results TEXT NOT NULL,
-        cached_at DATETIME NOT NULL,
-        cached_until DATETIME NOT NULL
+        cached_at DATETIME NOT NULL
       )
     `);
 
@@ -254,15 +253,17 @@ class DatabaseService {
       )
     `);
 
-    // Migration: drop cached_until column (replaced by tag-based cleanup)
-    try {
-      const cols = this.db.pragma('table_info(perfumes)') as Array<{ name: string }>;
-      if (cols.some(c => c.name === 'cached_until')) {
-        this.db.exec('ALTER TABLE perfumes DROP COLUMN cached_until');
-        logger.info('Dropped cached_until column from perfumes table');
+    // Migration: drop cached_until columns (replaced by tag-based cleanup)
+    for (const table of ['perfumes', 'search_cache']) {
+      try {
+        const cols = this.db.pragma(`table_info(${table})`) as Array<{ name: string }>;
+        if (cols.some(c => c.name === 'cached_until')) {
+          this.db.exec(`ALTER TABLE ${table} DROP COLUMN cached_until`);
+          logger.info(`Dropped cached_until column from ${table} table`);
+        }
+      } catch (error: any) {
+        logger.debug(`Migration for ${table}.cached_until removal failed:`, error.message);
       }
-    } catch (error: any) {
-      logger.debug('Migration for cached_until removal failed:', error.message);
     }
 
     // Create indexes
