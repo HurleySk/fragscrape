@@ -155,8 +155,8 @@ export class AuthBrowserClient {
       timeout,
     });
 
-    const loginForm = await this.page.$(PARFUMO_SELECTORS.login.form);
-    if (loginForm) {
+    const profileLink = await this.page.$(PARFUMO_SELECTORS.login.profileIndicator);
+    if (!profileLink) {
       await this.closeBrowser();
       throw new SessionExpiredError();
     }
@@ -166,7 +166,7 @@ export class AuthBrowserClient {
 
   async verifySession(): Promise<boolean> {
     try {
-      const { page } = await this.getAuthenticatedPage(PARFUMO_URLS.settings);
+      const { page } = await this.getAuthenticatedPage(PARFUMO_URLS.login);
       const profileEl = await page.$(PARFUMO_SELECTORS.login.profileIndicator);
       const isValid = profileEl !== null;
 

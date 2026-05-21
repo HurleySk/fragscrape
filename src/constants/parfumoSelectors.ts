@@ -43,7 +43,7 @@ export const PARFUMO_SELECTORS = {
 };
 
 export const PARFUMO_URLS = {
-  login: 'https://www.parfumo.com/login',
+  login: 'https://www.parfumo.com/',
   profile: (username: string) => `https://www.parfumo.com/Users/${username}`,
   collection: (username: string, category: string) =>
     `https://www.parfumo.com/Users/${username}/Collection/${category}`,
