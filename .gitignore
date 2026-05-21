@@ -52,3 +52,6 @@ claude*.md
 
 # Superpowers brainstorming
 .superpowers/
+
+# Docs (specs, plans, etc.)
+docs/
