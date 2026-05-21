@@ -1,0 +1,35 @@
+# Source
+src/
+tests/
+
+# Config
+.env
+.env.*
+tsconfig.json
+jest.config.js
+.eslintrc*
+.prettierrc*
+
+# Data
+data/
+logs/
+*.db
+*.sqlite
+
+# Dev
+.vscode/
+.idea/
+.claude/
+.superpowers/
+docs/
+coverage/
+
+# Git
+.gitignore
+.git/
+
+# Misc
+*.pid
+*.seed
+*.pid.lock
+debug_*.html

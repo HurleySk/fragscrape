@@ -1,15 +1,16 @@
-# Fragscrape API v1.2.8
+# Fragscrape API v2.0.0
 
-A web scraping API for perfume and fragrance data from Parfumo, built with TypeScript, Express, and Decodo rotating residential proxies.
+A web scraping API for perfume and fragrance data from Parfumo, built with TypeScript, Express, and Decodo rotating residential proxies. Features saved queries with progress tracking, tagging, and collection management.
 
 ## Features
 
+- **Saved Queries & Progress Tracking**: Save search queries, review results one by one, pick up where you left off
+- **Collection Management**: Tag perfumes ("want to try", "own", "tested", "pass"), add notes and interest ratings
 - **Residential Proxy Rotation**: Decodo rotating proxies via a single `DECODO_PROXY_URL`
 - **Data Caching**: SQLite database for caching perfume details and search results
-- **Automatic Cleanup**: Configurable auto-deletion of expired cache
+- **Tag-Based Cleanup**: Delete perfumes you've tagged "pass" — no automatic expiry
 - **Rate Limiting**: Configurable rate limiting to respect target websites
-- **RESTful API**: Clean API endpoints for search, detail, and brand lookups
-- **Error Handling**: Comprehensive error handling and logging with file rotation
+- **RESTful API**: Clean API endpoints for search, detail, queries, tags, and collections
 
 ## Prerequisites
 
@@ -18,23 +19,26 @@ A web scraping API for perfume and fragrance data from Parfumo, built with TypeS
 
 ## Installation
 
-1. Clone the repository:
+### From npm
+
+```bash
+npm install @hurleysk/fragscrape
+```
+
+### From source
+
 ```bash
 git clone https://github.com/HurleySk/fragscrape.git
 cd fragscrape
-```
-
-2. Install dependencies:
-```bash
 npm install
 ```
 
-3. Create environment file:
+Create environment file:
 ```bash
 cp .env.example .env
 ```
 
-4. Set your Decodo proxy URL in `.env`:
+Set your Decodo proxy URL in `.env`:
 ```env
 DECODO_PROXY_URL=http://user-USERNAME-country-us:PASSWORD@gate.decodo.com:7000
 ```
@@ -59,69 +63,117 @@ npm start
 ### Quick Start
 
 ```bash
-# Test proxy connection
-curl http://localhost:3000/api/proxy/test
-
 # Search for perfumes
 curl "http://localhost:3000/api/search?q=Aventus&limit=10"
 
-# Get specific perfume details
-curl "http://localhost:3000/api/perfume/Creed/Aventus"
+# Save a search query
+curl -X POST http://localhost:3000/api/queries \
+  -H "Content-Type: application/json" \
+  -d '{"query": "oud rose", "name": "Summer research"}'
 
-# Health check
-curl http://localhost:3000/health
+# List saved queries with progress
+curl http://localhost:3000/api/queries
+
+# Get next unreviewed item
+curl http://localhost:3000/api/queries/1/next
+
+# Mark item as reviewed
+curl -X PATCH http://localhost:3000/api/queries/1/items/3 \
+  -H "Content-Type: application/json" \
+  -d '{"reviewed": true}'
+
+# Tag a perfume
+curl -X POST http://localhost:3000/api/perfumes/5/tags \
+  -H "Content-Type: application/json" \
+  -d '{"tag": "want to try"}'
+
+# Set notes and interest
+curl -X PUT http://localhost:3000/api/perfumes/5/user-data \
+  -H "Content-Type: application/json" \
+  -d '{"notes": "Smoky, leathery. Try in winter.", "interest": 4}'
+
+# View your wishlist
+curl "http://localhost:3000/api/collection?tag=want+to+try"
+
+# See all tags with counts
+curl http://localhost:3000/api/tags
+
+# Cleanup perfumes tagged 'pass'
+curl -X DELETE http://localhost:3000/api/cleanup
 ```
 
 ## API Endpoints
 
-### Perfume Endpoints
+### Search & Perfume Data
 
-#### Search Perfumes
-```
-GET /api/search?q={query}&limit=20&cache=true
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/search?q={query}&limit=20&cache=true` | Search perfumes |
+| GET | `/api/perfume/{brand}/{name}?year=2020&cache=true` | Get perfume details |
+| POST | `/api/perfume/by-url?cache=true` | Get perfume by URL |
+| GET | `/api/brand/{brand}?page=1` | Get perfumes by brand |
 
-#### Get Perfume Details
-```
-GET /api/perfume/{brand}/{name}?year=2020&cache=true
-```
-Parameters:
-- `brand`: Brand name (spaces or underscores)
-- `name`: Perfume name (spaces or underscores)
-- `year`: Optional year variant
-- `cache`: Set to `false` to bypass cache (default: `true`)
+### Saved Queries
 
-#### Get Perfume by URL
-```
-POST /api/perfume/by-url?cache=true
-Body: { "url": "https://www.parfumo.com/..." }
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/queries` | Save a query and snapshot results |
+| GET | `/api/queries` | List saved queries with progress stats |
+| GET | `/api/queries/:id` | Get query with all items and their data |
+| PATCH | `/api/queries/:id` | Update query name |
+| DELETE | `/api/queries/:id` | Delete a saved query |
+| POST | `/api/queries/:id/refresh` | Re-run search, sync results |
 
-#### Get Perfumes by Brand
-```
-GET /api/brand/{brand}?page=1
-```
+### Query Progress
 
-### Cache Management
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| PATCH | `/api/queries/:id/items/:itemId` | Mark item reviewed/skipped |
+| GET | `/api/queries/:id/next` | Get next unreviewed item |
 
-#### Clear Cache
-```
-DELETE /api/cache?type={all|perfumes|search|expired}
-```
+### Tags
 
-### Proxy
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/perfumes/:id/tags` | Add a tag to a perfume |
+| DELETE | `/api/perfumes/:id/tags/:tag` | Remove a tag |
+| GET | `/api/perfumes/:id/tags` | List tags on a perfume |
+| GET | `/api/tags` | List all tags with counts |
 
-#### Test Connection
-```
-GET /api/proxy/test
-```
+### User Data
 
-### Health
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| PUT | `/api/perfumes/:id/user-data` | Set notes and/or interest (1-5) |
+| GET | `/api/perfumes/:id/user-data` | Get notes and interest |
+| DELETE | `/api/perfumes/:id/user-data` | Clear user data |
 
-#### Health Check
-```
-GET /health
-```
+### Collection & Cleanup
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/collection?tag={tag}` | Get perfumes by tag (wishlist, collection) |
+| DELETE | `/api/cleanup` | Delete all perfumes tagged "pass" |
+
+### System
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Health check |
+| GET | `/api/proxy/test` | Test proxy connection |
+
+## Default Tags
+
+Tags aligned with Parfumo's collection categories:
+
+| Tag | Purpose | Parfumo Equivalent |
+|-----|---------|-------------------|
+| `want to try` | Wishlist | Wishlist |
+| `tested` | Tried but don't own | Tested |
+| `own` | In your collection | I have |
+| `pass` | Not interested (eligible for cleanup) | — |
+
+Custom tags are supported — use any string.
 
 ## Perfume Data Fields
 
@@ -154,12 +206,11 @@ All configuration is done through environment variables:
 | `PORT` | API server port | 3000 |
 | `NODE_ENV` | Environment mode | development |
 | `DATABASE_PATH` | SQLite database path | ./data/fragscrape.db |
-| `CACHE_PERFUME_DURATION_SECONDS` | Cache duration for perfume details | 86400 (24h) |
-| `CACHE_SEARCH_DURATION_SECONDS` | Cache duration for search results | 3600 (1h) |
+| `CACHE_PERFUME_DURATION_SECONDS` | Freshness window for perfume data | 21600 (6h) |
+| `CACHE_SEARCH_DURATION_SECONDS` | Freshness window for search results | 3600 (1h) |
 | `LOG_LEVEL` | Logging level (error/warn/info/debug) | info |
 | `LOG_FILE_MAX_SIZE_MB` | Max size per log file | 5 |
 | `LOG_FILE_MAX_FILES` | Number of rotated log files to keep | 5 |
-| `CLEANUP_INTERVAL_HOURS` | Run cache cleanup every N hours | 24 |
 | `BROWSER_EXECUTABLE_PATH` | Custom Chrome/Chromium path | (bundled) |
 | `RATE_LIMIT_WINDOW_MS` | Rate limit window | 900000 (15m) |
 | `RATE_LIMIT_MAX_REQUESTS` | Max requests per window | 100 |
@@ -169,29 +220,21 @@ All configuration is done through environment variables:
 ```
 fragscrape/
 ├── src/
-│   ├── api/              # API routes and middleware
-│   │   ├── routes/       # Route handlers
-│   │   ├── middleware/    # Express middleware
-│   │   └── validation/   # Zod schemas
-│   ├── scrapers/         # Web scraping logic
-│   ├── proxy/            # Proxy configuration and clients
-│   ├── database/         # SQLite layer
-│   ├── types/            # TypeScript type definitions
-│   ├── utils/            # Utility functions
-│   ├── constants/        # Scraping constants
-│   └── config/           # Configuration
-├── tests/                # Test files
-├── logs/                 # Application logs
-└── data/                 # SQLite database
+│   ├── api/
+│   │   ├── routes/         # perfume, queries, perfumeData, proxy
+│   │   ├── middleware/      # errorHandler, validate
+│   │   └── validation/      # schemas, querySchemas
+│   ├── scrapers/            # Web scraping logic
+│   ├── proxy/               # Proxy configuration and clients
+│   ├── database/            # database.ts (SQLite), queries.ts (QueryDatabase)
+│   ├── types/               # TypeScript type definitions
+│   ├── utils/               # Logger, retry, validation, apiResponse
+│   ├── constants/           # Scraping constants
+│   └── config/              # Configuration
+├── tests/                   # Jest test files
+├── logs/                    # Application logs
+└── data/                    # SQLite database
 ```
-
-## Error Handling
-
-- Comprehensive error logging with Winston
-- Automatic proxy session reset on 403 errors
-- Request retry with exponential backoff
-- Cloudflare challenge detection and bypass
-- Page content validation to detect session pollution
 
 ## Testing
 
@@ -206,10 +249,14 @@ npm test
 2. Test connection: `GET /api/proxy/test`
 3. Verify credentials on the [Decodo dashboard](https://dashboard.decodo.com)
 
-### Cache Issues
-- Automatic cleanup runs every 24 hours (configurable via `CLEANUP_INTERVAL_HOURS`)
-- Manual cleanup: `DELETE /api/cache?type=all`
-- Full reset: Delete `data/fragscrape.db`
+### Stale Data
+- Perfume data is re-scraped when older than the configured freshness window (default 6 hours)
+- To force fresh data, use `?cache=false` on any endpoint
+
+### Cleanup
+- Tag unwanted perfumes with "pass": `POST /api/perfumes/:id/tags` with `{"tag": "pass"}`
+- Run cleanup: `DELETE /api/cleanup`
+- Full database reset: delete `data/fragscrape.db`
 
 ## License
 

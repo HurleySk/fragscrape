@@ -49,3 +49,6 @@ claude*.md
 .claude/
 *claude-notes*
 *claude-backup*
+
+# Superpowers brainstorming
+.superpowers/
