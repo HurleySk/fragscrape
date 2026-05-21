@@ -19,7 +19,7 @@ function getAuthClient(): AuthBrowserClient {
   const key = config.parfumo.sessionKey;
   if (!key) throw new SessionNotConfiguredError();
   const sessionManager = new SessionManager(getParfumoDb(), key);
-  return new AuthBrowserClient(sessionManager, getParfumoDb());
+  return new AuthBrowserClient(sessionManager);
 }
 
 function buildCollectionPushDiff(): SyncDiffItem[] {

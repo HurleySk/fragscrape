@@ -1,11 +1,10 @@
-import { Browser, Page, Protocol } from 'puppeteer';
+import { Browser, Page, CookieParam } from 'puppeteer';
 import puppeteerExtra from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import config from '../config/config';
 import logger from '../utils/logger';
 import { SessionExpiredError, ParfumoUIError, SessionNotConfiguredError } from '../api/middleware/errorHandler';
 import { SessionManager } from './sessionManager';
-import { ParfumoDb } from '../database/parfumoDb';
 import { PARFUMO_SELECTORS, PARFUMO_URLS } from '../constants/parfumoSelectors';
 
 puppeteerExtra.use(StealthPlugin());
@@ -15,8 +14,7 @@ export class AuthBrowserClient {
   private page: Page | null = null;
 
   constructor(
-    private sessionManager: SessionManager,
-    private parfumoDb: ParfumoDb
+    private sessionManager: SessionManager
   ) {}
 
   private getSessionKey(): string {
@@ -148,7 +146,7 @@ export class AuthBrowserClient {
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     );
 
-    await this.page.setCookie(...session.cookies as Protocol.Network.CookieParam[]);
+    await this.page.setCookie(...session.cookies as CookieParam[]);
 
     const timeout = config.parfumo.actionTimeoutMs;
 

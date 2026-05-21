@@ -3,7 +3,6 @@ import config from '../../config/config';
 import database from '../../database/database';
 import { getQueryDb } from '../../database/queries';
 import { getParfumoDb } from '../../database/parfumoDb';
-import logger from '../../utils/logger';
 import { asyncHandler, NotFoundError, SessionNotConfiguredError } from '../middleware/errorHandler';
 import { validate } from '../middleware/validate';
 import { sendSuccess } from '../../utils/apiResponse';
@@ -19,7 +18,7 @@ function getAuthClient(): AuthBrowserClient {
   const key = config.parfumo.sessionKey;
   if (!key) throw new SessionNotConfiguredError();
   const sessionManager = new SessionManager(getParfumoDb(), key);
-  return new AuthBrowserClient(sessionManager, getParfumoDb());
+  return new AuthBrowserClient(sessionManager);
 }
 
 router.post('/', validate({ body: collectionActionSchema }), asyncHandler(async (req: Request, res: Response) => {

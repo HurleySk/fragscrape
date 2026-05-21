@@ -16,7 +16,7 @@ function getSessionManager(): SessionManager {
 }
 
 function getAuthClient(): AuthBrowserClient {
-  return new AuthBrowserClient(getSessionManager(), getParfumoDb());
+  return new AuthBrowserClient(getSessionManager());
 }
 
 router.post('/login', asyncHandler(async (_req: Request, res: Response) => {
