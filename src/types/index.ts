@@ -64,3 +64,4 @@ export interface ApiResponse<T> {
 }
 
 export * from './queries';
+export * from './parfumo';

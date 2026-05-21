@@ -42,6 +42,13 @@ export interface PerfumeUserData {
   perfumeId: number;
   notes: string | null;
   interest: number | null;
+  parfumoScentRating: number | null;
+  parfumoLongevityRating: number | null;
+  parfumoSillageRating: number | null;
+  parfumoBottleRating: number | null;
+  parfumoValueRating: number | null;
+  parfumoReview: string | null;
+  parfumoSyncedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

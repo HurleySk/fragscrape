@@ -61,6 +61,30 @@ export class RateLimitError extends AppError {
   }
 }
 
+export class ParfumoUIError extends AppError {
+  constructor(message: string, public selector?: string, public pageUrl?: string) {
+    super(502, `Parfumo UI error: ${message}`);
+    this.name = 'ParfumoUIError';
+    Object.setPrototypeOf(this, ParfumoUIError.prototype);
+  }
+}
+
+export class SessionExpiredError extends AppError {
+  constructor() {
+    super(401, 'Parfumo session expired — call POST /api/auth/login to re-authenticate');
+    this.name = 'SessionExpiredError';
+    Object.setPrototypeOf(this, SessionExpiredError.prototype);
+  }
+}
+
+export class SessionNotConfiguredError extends AppError {
+  constructor(message: string = 'Auth not configured — set PARFUMO_SESSION_KEY env var and call POST /api/auth/login') {
+    super(503, message);
+    this.name = 'SessionNotConfiguredError';
+    Object.setPrototypeOf(this, SessionNotConfiguredError.prototype);
+  }
+}
+
 export const errorHandler = (
   err: Error | AppError,
   _req: Request,

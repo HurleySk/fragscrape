@@ -234,6 +234,13 @@ export class QueryDatabase {
       perfumeId: row.perfume_id,
       notes: row.notes,
       interest: row.interest,
+      parfumoScentRating: row.parfumo_scent_rating ?? null,
+      parfumoLongevityRating: row.parfumo_longevity_rating ?? null,
+      parfumoSillageRating: row.parfumo_sillage_rating ?? null,
+      parfumoBottleRating: row.parfumo_bottle_rating ?? null,
+      parfumoValueRating: row.parfumo_value_rating ?? null,
+      parfumoReview: row.parfumo_review ?? null,
+      parfumoSyncedAt: row.parfumo_synced_at ?? null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
