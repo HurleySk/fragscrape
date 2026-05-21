@@ -22,7 +22,7 @@ A web scraping API for perfume and fragrance data from Parfumo, built with TypeS
 ### From npm
 
 ```bash
-npm install @hurleysk/fragscrape
+npm install fragscrape
 ```
 
 ### From source
