@@ -77,14 +77,6 @@ export class SessionExpiredError extends AppError {
   }
 }
 
-export class SessionNotConfiguredError extends AppError {
-  constructor(message: string = 'Auth not configured — set PARFUMO_SESSION_KEY env var and call POST /api/auth/login') {
-    super(503, message);
-    this.name = 'SessionNotConfiguredError';
-    Object.setPrototypeOf(this, SessionNotConfiguredError.prototype);
-  }
-}
-
 export const errorHandler = (
   err: Error | AppError,
   _req: Request,

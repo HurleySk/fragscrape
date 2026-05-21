@@ -5,7 +5,7 @@ import path from 'path';
 import config from '../config/config';
 import logger from '../utils/logger';
 import { SessionExpiredError, ParfumoUIError } from '../api/middleware/errorHandler';
-import { PARFUMO_SELECTORS, PARFUMO_URLS } from '../constants/parfumoSelectors';
+import { PARFUMO_URLS } from '../constants/parfumoSelectors';
 
 puppeteerExtra.use(StealthPlugin());
 
@@ -29,6 +29,38 @@ export class AuthBrowserClient {
     return opts;
   }
 
+  private async isLoggedIn(page: Page): Promise<boolean> {
+    return page.evaluate(() => {
+      const mobileAuth = document.querySelector('.mobile-menu-auth');
+      if (mobileAuth) {
+        const hasLoginBtn = !!mobileAuth.querySelector('a[href*="register"], #mobile-menu-login-btn');
+        if (hasLoginBtn) return false;
+      }
+      const actionLinks = document.querySelectorAll('.pd-nav a');
+      for (const link of actionLinks) {
+        const href = link.getAttribute('href') || '';
+        if (href.includes('/action/dologin')) return false;
+      }
+      const logoutLink = document.querySelector('a[href*="board/logout"], a[href*="action/logout"]');
+      if (logoutLink) return true;
+      if (actionLinks.length > 0) return true;
+      return false;
+    });
+  }
+
+  private async getUsername(page: Page): Promise<string | null> {
+    return page.evaluate(() => {
+      const mobileAuth = document.querySelector('.mobile-menu-auth');
+      if (mobileAuth) {
+        const profileLink = mobileAuth.querySelector('a[href*="/Users/"]');
+        if (profileLink) return profileLink.textContent?.trim() || null;
+      }
+      const headerLink = document.querySelector('.header-wrapper a[href*="/Users/"]');
+      if (headerLink) return headerLink.textContent?.trim() || null;
+      return null;
+    });
+  }
+
   async launchLoginBrowser(): Promise<{ username: string | null }> {
     await this.closeBrowser();
 
@@ -49,6 +81,14 @@ export class AuthBrowserClient {
 
     await this.dismissCookieConsent();
 
+    const alreadyLoggedIn = await this.isLoggedIn(this.page);
+    if (alreadyLoggedIn) {
+      const username = await this.getUsername(this.page);
+      logger.info(`Already logged in as: ${username || 'unknown'}`);
+      await this.closeBrowser();
+      return { username };
+    }
+
     logger.info('Waiting for user to log in (timeout: 5 minutes)...');
 
     const loginTimeout = config.parfumo.loginTimeoutMs;
@@ -58,13 +98,10 @@ export class AuthBrowserClient {
 
     while (Date.now() - startTime < loginTimeout) {
       try {
-        const profileEl = await this.page.$(PARFUMO_SELECTORS.login.profileIndicator);
-        if (profileEl) {
-          loggedIn = true;
-          break;
-        }
+        loggedIn = await this.isLoggedIn(this.page);
+        if (loggedIn) break;
       } catch {
-        // Page may have navigated, continue polling
+        // Page may have navigated
       }
       await new Promise(resolve => setTimeout(resolve, pollInterval));
     }
@@ -74,16 +111,7 @@ export class AuthBrowserClient {
       throw new ParfumoUIError('Login timed out — user did not complete login within the timeout period');
     }
 
-    let username: string | null = null;
-    try {
-      const profileLink = await this.page.$(PARFUMO_SELECTORS.login.profileIndicator);
-      if (profileLink) {
-        username = await this.page.evaluate(el => el?.textContent?.trim() || null, profileLink);
-      }
-    } catch {
-      logger.warn('Could not extract username from page');
-    }
-
+    const username = await this.getUsername(this.page);
     logger.info(`Login successful for user: ${username || 'unknown'}`);
     await this.closeBrowser();
 
@@ -109,8 +137,8 @@ export class AuthBrowserClient {
 
     await this.dismissCookieConsent();
 
-    const profileLink = await this.page.$(PARFUMO_SELECTORS.login.profileIndicator);
-    if (!profileLink) {
+    const loggedIn = await this.isLoggedIn(this.page);
+    if (!loggedIn) {
       await this.closeBrowser();
       throw new SessionExpiredError();
     }
@@ -121,9 +149,9 @@ export class AuthBrowserClient {
   async verifySession(): Promise<boolean> {
     try {
       const { page } = await this.getAuthenticatedPage(PARFUMO_URLS.login);
-      const profileEl = await page.$(PARFUMO_SELECTORS.login.profileIndicator);
+      const loggedIn = await this.isLoggedIn(page);
       await this.closeBrowser();
-      return profileEl !== null;
+      return loggedIn;
     } catch (error) {
       await this.closeBrowser();
       if (error instanceof SessionExpiredError) return false;
