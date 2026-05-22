@@ -1,16 +1,16 @@
-# Fragscrape API v3.0.0
+# Fragscrape API v3.1.0
 
-A web scraping API for perfume and fragrance data from Parfumo, built with TypeScript, Express, and Decodo rotating residential proxies. Features saved queries with progress tracking, tagging, and collection management.
+A web scraping API for perfume and fragrance data from Parfumo, built with TypeScript, Express, and Decodo rotating residential proxies. Features saved queries with progress tracking, tagging, collection management, and Parfumo account integration.
 
 ## Features
 
 - **Saved Queries & Progress Tracking**: Save search queries, review results one by one, pick up where you left off
 - **Collection Management**: Tag perfumes ("want to try", "own", "tested", "pass"), add notes and interest ratings
+- **Parfumo Account Integration**: Log in to Parfumo via browser handoff, manage collection/wishlist, submit ratings
+- **Bidirectional Sync**: Push local tags to Parfumo collections, pull Parfumo data locally
 - **Residential Proxy Rotation**: Decodo rotating proxies via a single `DECODO_PROXY_URL`
 - **Data Caching**: SQLite database for caching perfume details and search results
-- **Tag-Based Cleanup**: Delete perfumes you've tagged "pass" — no automatic expiry
-- **Parfumo Account Integration**: Log in to Parfumo, manage collection/wishlist, submit ratings and reviews
-- **Bidirectional Sync**: Push local tags to Parfumo collections, pull Parfumo data locally
+- **Tag-Based Cleanup**: Delete perfumes you've tagged "pass" - no automatic expiry
 - **Rate Limiting**: Configurable rate limiting to respect target websites
 - **RESTful API**: Clean API endpoints for search, detail, queries, tags, and collections
 
@@ -18,6 +18,7 @@ A web scraping API for perfume and fragrance data from Parfumo, built with TypeS
 
 - Node.js v18+ and npm
 - Decodo account with residential proxy access
+- Chrome/Chromium (bundled with Puppeteer, or set `BROWSER_EXECUTABLE_PATH`)
 
 ## Installation
 
@@ -104,20 +105,24 @@ curl http://localhost:3000/api/tags
 curl -X DELETE http://localhost:3000/api/cleanup
 ```
 
-### Parfumo Account Setup
+### Parfumo Account Integration
+
+Fragscrape can manage your Parfumo collection directly. A visible Chrome browser is used for authentication and all Parfumo actions (Parfumo detects and blocks headless browsers). The browser stays running in the background after login.
 
 ```bash
-# 1. Set encryption key (32+ characters)
-# Add to .env: PARFUMO_SESSION_KEY=your-secret-key-at-least-32-chars-long
-
-# 2. Log in to Parfumo (opens browser window)
+# 1. Log in to Parfumo (opens a visible browser window - log in manually)
 curl -X POST http://localhost:3000/api/auth/login
 
-# 3. Check session status
+# 2. Check session status
 curl http://localhost:3000/api/auth/status
 
-# 4. Add a perfume to your Parfumo wishlist
+# 3. Add a perfume to your Parfumo wishlist
 curl -X POST http://localhost:3000/api/parfumo/collection \
+  -H "Content-Type: application/json" \
+  -d '{"perfumeId": 5, "category": "wishlist"}'
+
+# 4. Remove from collection
+curl -X DELETE http://localhost:3000/api/parfumo/collection \
   -H "Content-Type: application/json" \
   -d '{"perfumeId": 5, "category": "wishlist"}'
 
@@ -126,11 +131,26 @@ curl -X PUT http://localhost:3000/api/parfumo/rating \
   -H "Content-Type: application/json" \
   -d '{"perfumeId": 5, "scent": 8.5, "longevity": 7}'
 
-# 6. Push all local tags to Parfumo
+# 6. Read your rating
+curl http://localhost:3000/api/parfumo/rating/5
+
+# 7. Push all local tags to Parfumo collections
 curl -X POST http://localhost:3000/api/sync/push \
   -H "Content-Type: application/json" \
   -d '{"scope": "all"}'
+
+# 8. Preview what would sync
+curl http://localhost:3000/api/sync/diff
 ```
+
+**Collection categories:**
+
+| Category | Parfumo Label | data-type |
+|----------|---------------|-----------|
+| `i_have` | I have | 1 |
+| `i_had` | I had | 2 |
+| `wishlist` | Wish List | 3 |
+| `tested` | Tested | 5 |
 
 ## API Endpoints
 
@@ -191,7 +211,7 @@ curl -X POST http://localhost:3000/api/sync/push \
 |--------|----------|-------------|
 | POST | `/api/auth/login` | Launch browser for Parfumo login |
 | GET | `/api/auth/status` | Check session validity |
-| POST | `/api/auth/logout` | Clear stored session |
+| POST | `/api/auth/logout` | Session info |
 
 ### Parfumo Collection
 
@@ -199,20 +219,19 @@ curl -X POST http://localhost:3000/api/sync/push \
 |--------|----------|-------------|
 | POST | `/api/parfumo/collection` | Add perfume to Parfumo collection |
 | DELETE | `/api/parfumo/collection` | Remove perfume from Parfumo collection |
-| GET | `/api/parfumo/collection` | Get collection info |
 
 ### Parfumo Ratings
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | PUT | `/api/parfumo/rating` | Submit/update rating on Parfumo |
-| GET | `/api/parfumo/rating/:perfumeId` | Get your rating from Parfumo |
+| GET | `/api/parfumo/rating/:perfumeId` | Read rating from Parfumo |
 
 ### Parfumo Reviews
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/parfumo/reviews/:perfumeId` | Get your review from Parfumo |
+| GET | `/api/parfumo/reviews/:perfumeId` | Read review from Parfumo |
 | PUT | `/api/parfumo/reviews` | Create/update review on Parfumo |
 | DELETE | `/api/parfumo/reviews/:perfumeId` | Delete review from Parfumo |
 
@@ -237,12 +256,12 @@ Tags aligned with Parfumo's collection categories:
 
 | Tag | Purpose | Parfumo Equivalent |
 |-----|---------|-------------------|
-| `want to try` | Wishlist | Wishlist |
+| `want to try` | Wishlist | Wish List |
 | `tested` | Tried but don't own | Tested |
 | `own` | In your collection | I have |
-| `pass` | Not interested (eligible for cleanup) | — |
+| `pass` | Not interested (eligible for cleanup) | - |
 
-Custom tags are supported — use any string.
+Custom tags are supported - use any string.
 
 ## Perfume Data Fields
 
@@ -283,29 +302,42 @@ All configuration is done through environment variables:
 | `BROWSER_EXECUTABLE_PATH` | Custom Chrome/Chromium path | (bundled) |
 | `RATE_LIMIT_WINDOW_MS` | Rate limit window | 900000 (15m) |
 | `RATE_LIMIT_MAX_REQUESTS` | Max requests per window | 100 |
-| `PARFUMO_SESSION_KEY` | AES-256 key for session encryption (32+ chars) | - |
 | `PARFUMO_LOGIN_TIMEOUT_MS` | Login flow timeout | 300000 (5 min) |
 | `PARFUMO_ACTION_TIMEOUT_MS` | Per-action browser timeout | 30000 (30s) |
+
+## Architecture Notes
+
+### Browser Session Management
+
+Parfumo detects headless browsers and blocks automated access. Fragscrape uses a **singleton visible Chrome browser** that stays alive between API calls:
+
+1. `POST /api/auth/login` opens a visible browser window for manual login
+2. After login, the browser stays running (minimized off-screen)
+3. Subsequent API calls (collection, rating, etc.) open new tabs in the same browser
+4. The session persists as long as the server process is running
+5. If the server restarts, you need to log in again
+
+The browser uses `puppeteer-extra-plugin-stealth` to reduce detection and a persistent Chrome profile (`data/chrome-profile/`) for cookie storage.
 
 ## Project Structure
 
 ```
 fragscrape/
-├── src/
-│   ├── api/
-│   │   ├── routes/         # perfume, queries, perfumeData, proxy
-│   │   ├── middleware/      # errorHandler, validate
-│   │   └── validation/      # schemas, querySchemas
-│   ├── scrapers/            # Web scraping logic
-│   ├── proxy/               # Proxy configuration and clients
-│   ├── database/            # database.ts (SQLite), queries.ts (QueryDatabase)
-│   ├── types/               # TypeScript type definitions
-│   ├── utils/               # Logger, retry, validation, apiResponse
-│   ├── constants/           # Scraping constants
-│   └── config/              # Configuration
-├── tests/                   # Jest test files
-├── logs/                    # Application logs
-└── data/                    # SQLite database
+  src/
+    api/
+      routes/         # perfume, queries, perfumeData, proxy, auth, parfumo*
+      middleware/      # errorHandler, validate
+      validation/      # schemas, querySchemas, parfumoSchemas
+    auth/              # authBrowserClient, parfumoActions
+    scrapers/          # Web scraping logic
+    proxy/             # Proxy configuration and clients
+    database/          # database.ts (SQLite), queries.ts, parfumoDb.ts
+    types/             # TypeScript type definitions
+    utils/             # Logger, retry, validation, apiResponse
+    constants/         # Scraping constants, parfumoSelectors
+    config/            # Configuration
+  tests/               # Jest test files
+  data/                # SQLite database, Chrome profile
 ```
 
 ## Testing
@@ -320,6 +352,12 @@ npm test
 1. Check `DECODO_PROXY_URL` in `.env`
 2. Test connection: `GET /api/proxy/test`
 3. Verify credentials on the [Decodo dashboard](https://dashboard.decodo.com)
+
+### Parfumo Login Issues
+- The login browser must be visible (not headless) - Parfumo blocks headless browsers
+- If login times out, restart the server and try again
+- The browser stays running after login - don't close it manually
+- If the server restarts, the session is lost and you need to log in again
 
 ### Stale Data
 - Perfume data is re-scraped when older than the configured freshness window (default 6 hours)
