@@ -24,7 +24,7 @@ router.post('/', validate({ body: createQuerySchema }), asyncHandler(async (req:
   const results = await parfumoScraper.search(query, 20);
 
   if (!results || results.length === 0) {
-    throw new ValidationError('Search returned no results — cannot save an empty query');
+    throw new ValidationError('Search returned no results - cannot save an empty query');
   }
 
   const perfumeIds: number[] = [];
@@ -127,7 +127,7 @@ router.post('/:id/refresh', validate({ params: queryIdParamsSchema }), asyncHand
   }
 
   if (perfumeIds.length === 0) {
-    throw new ValidationError('Refresh returned no results — items unchanged');
+    throw new ValidationError('Refresh returned no results - items unchanged');
   }
 
   queryDb.refreshQueryItems(id, perfumeIds);

@@ -169,7 +169,7 @@ router.post('/pull', validate({ body: syncScopeSchema }), asyncHandler(async (re
 
   return sendSuccess(res, {
     ...result,
-    message: 'Pull requires scraping your Parfumo profile — this is a long-running operation. Collection pull will be implemented when profile page selectors are verified.',
+    message: 'Pull requires scraping your Parfumo profile - this is a long-running operation. Collection pull will be implemented when profile page selectors are verified.',
   });
 }));
 

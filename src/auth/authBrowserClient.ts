@@ -11,195 +11,202 @@ puppeteerExtra.use(StealthPlugin());
 
 const PROFILE_DIR = path.resolve(config.database.path, '..', 'chrome-profile');
 
-export class AuthBrowserClient {
-  private browser: Browser | null = null;
-  private page: Page | null = null;
+let sharedBrowser: Browser | null = null;
+let browserAuthenticated = false;
 
-  private baseLaunchOptions(): any {
-    const opts: any = {
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        `--user-data-dir=${PROFILE_DIR}`,
-      ],
-    };
-    if (config.browser.executablePath) {
-      opts.executablePath = config.browser.executablePath;
-    }
-    return opts;
-  }
+async function ensureBrowser(): Promise<Browser> {
+  if (sharedBrowser && sharedBrowser.connected) return sharedBrowser;
+  browserAuthenticated = false;
 
-  private async isLoggedIn(page: Page): Promise<boolean> {
-    return page.evaluate(() => {
-      const mobileAuth = document.querySelector('.mobile-menu-auth');
-      if (mobileAuth) {
-        const hasLoginBtn = !!mobileAuth.querySelector('a[href*="register"], #mobile-menu-login-btn');
-        if (hasLoginBtn) return false;
-      }
-      const actionLinks = document.querySelectorAll('.pd-nav a');
-      for (const link of actionLinks) {
-        const href = link.getAttribute('href') || '';
-        if (href.includes('/action/dologin')) return false;
-      }
-      const logoutLink = document.querySelector('a[href*="board/logout"], a[href*="action/logout"]');
+  sharedBrowser = await puppeteerExtra.launch({
+    userDataDir: PROFILE_DIR,
+    headless: false,
+    defaultViewport: null,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--window-size=1,1',
+      '--window-position=-32000,-32000',
+    ],
+  });
+
+  sharedBrowser.on('disconnected', () => {
+    sharedBrowser = null;
+    browserAuthenticated = false;
+  });
+
+  return sharedBrowser;
+}
+
+async function isLoggedIn(page: Page): Promise<boolean> {
+  try {
+    return await page.evaluate(() => {
+      const loginBtn = document.querySelector('#login-btn');
+      if (loginBtn) return false;
+      const myParfumo = document.querySelector('.icon-my-parfumo, .nick_name');
+      if (myParfumo) return true;
+      const logoutLink = document.querySelector('a[href*="logout"]');
       if (logoutLink) return true;
-      if (actionLinks.length > 0) return true;
       return false;
     });
+  } catch {
+    return false;
   }
+}
 
-  private async getUsername(page: Page): Promise<string | null> {
-    return page.evaluate(() => {
-      const mobileAuth = document.querySelector('.mobile-menu-auth');
-      if (mobileAuth) {
-        const profileLink = mobileAuth.querySelector('a[href*="/Users/"]');
-        if (profileLink) return profileLink.textContent?.trim() || null;
-      }
-      const headerLink = document.querySelector('.header-wrapper a[href*="/Users/"]');
-      if (headerLink) return headerLink.textContent?.trim() || null;
+async function getUsername(page: Page): Promise<string | null> {
+  try {
+    return await page.evaluate(() => {
+      const nick = document.querySelector('.nick_name');
+      if (nick) return nick.textContent?.trim()?.replace(/\s*$/, '') || null;
+      const myParfumo = document.querySelector('.icon-my-parfumo img[alt]');
+      if (myParfumo) return myParfumo.getAttribute('alt') || null;
       return null;
     });
+  } catch {
+    return null;
   }
+}
 
+async function dismissCookieConsent(page: Page): Promise<void> {
+  try {
+    const iframeEl = await page.$('iframe[id^="sp_message_iframe"]');
+    if (!iframeEl) return;
+    const frame = await iframeEl.contentFrame();
+    if (!frame) return;
+    for (const sel of ['button[title="Accept"]', 'button.sp_choice_type_11']) {
+      try {
+        await frame.waitForSelector(sel, { timeout: 3000 });
+        await frame.click(sel);
+        logger.debug('Dismissed cookie consent popup');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return;
+      } catch { /* try next */ }
+    }
+  } catch {
+    logger.debug('No cookie consent popup found');
+  }
+}
+
+export class AuthBrowserClient {
   async launchLoginBrowser(): Promise<{ username: string | null }> {
-    await this.closeBrowser();
+    if (sharedBrowser && sharedBrowser.connected) {
+      try { await sharedBrowser.close(); } catch {}
+      sharedBrowser = null;
+      browserAuthenticated = false;
+    }
 
     logger.info('Launching visible browser for Parfumo login...');
 
-    this.browser = await puppeteerExtra.launch({
-      ...this.baseLaunchOptions(),
+    sharedBrowser = await puppeteerExtra.launch({
+      userDataDir: PROFILE_DIR,
       headless: false,
       defaultViewport: { width: 1280, height: 800 },
-      args: [...this.baseLaunchOptions().args, '--window-size=1280,800'],
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--window-size=1280,800'],
     });
-    this.page = await this.browser.newPage();
 
-    await this.page.goto(PARFUMO_URLS.login, {
+    sharedBrowser.on('disconnected', () => {
+      sharedBrowser = null;
+      browserAuthenticated = false;
+    });
+
+    const pages = await sharedBrowser.pages();
+    const page = pages[0] || await sharedBrowser.newPage();
+
+    await page.goto(PARFUMO_URLS.login, {
       waitUntil: 'networkidle2',
       timeout: 60000,
     });
 
-    await this.dismissCookieConsent();
+    await dismissCookieConsent(page);
 
-    const alreadyLoggedIn = await this.isLoggedIn(this.page);
-    if (alreadyLoggedIn) {
-      const username = await this.getUsername(this.page);
+    if (await isLoggedIn(page)) {
+      const username = await getUsername(page);
       logger.info(`Already logged in as: ${username || 'unknown'}`);
-      await this.closeBrowser();
+      browserAuthenticated = true;
       return { username };
     }
 
     logger.info('Waiting for user to log in (timeout: 5 minutes)...');
 
     const loginTimeout = config.parfumo.loginTimeoutMs;
-    const pollInterval = 2000;
+    const pollInterval = 3000;
     const startTime = Date.now();
     let loggedIn = false;
 
     while (Date.now() - startTime < loginTimeout) {
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
       try {
-        loggedIn = await this.isLoggedIn(this.page);
+        loggedIn = await isLoggedIn(page);
         if (loggedIn) break;
       } catch {
-        // Page may have navigated
+        try {
+          const currentPages = await sharedBrowser.pages();
+          const currentPage = currentPages[currentPages.length - 1];
+          await currentPage.waitForSelector('body', { timeout: 5000 });
+          loggedIn = await isLoggedIn(currentPage);
+          if (loggedIn) break;
+        } catch (err) {
+          logger.debug(`Login poll error: ${err instanceof Error ? err.message : err}`);
+        }
       }
-      await new Promise(resolve => setTimeout(resolve, pollInterval));
     }
 
     if (!loggedIn) {
-      await this.closeBrowser();
-      throw new ParfumoUIError('Login timed out — user did not complete login within the timeout period');
+      throw new ParfumoUIError('Login timed out - user did not complete login within the timeout period');
     }
 
-    const username = await this.getUsername(this.page);
+    browserAuthenticated = true;
+    const username = await getUsername(page);
     logger.info(`Login successful for user: ${username || 'unknown'}`);
-    await this.closeBrowser();
 
     return { username };
   }
 
   async getAuthenticatedPage(url: string): Promise<{ page: Page; browser: Browser }> {
-    await this.closeBrowser();
+    const browser = await ensureBrowser();
 
-    this.browser = await puppeteerExtra.launch({
-      ...this.baseLaunchOptions(),
-      headless: true,
-      defaultViewport: { width: 1920, height: 1080 },
-    });
-    this.page = await this.browser.newPage();
+    const page = await browser.newPage();
 
     const timeout = config.parfumo.actionTimeoutMs;
-
-    await this.page.goto(url, {
+    await page.goto(url, {
       waitUntil: 'networkidle2',
       timeout: Math.max(timeout, 60000),
     });
 
-    await this.dismissCookieConsent();
+    await dismissCookieConsent(page);
 
-    const loggedIn = await this.isLoggedIn(this.page);
+    const loggedIn = await isLoggedIn(page);
+    logger.info(`getAuthenticatedPage: isLoggedIn=${loggedIn} url=${page.url()} browserAuth=${browserAuthenticated}`);
     if (!loggedIn) {
-      await this.closeBrowser();
+      await page.close();
       throw new SessionExpiredError();
     }
+    browserAuthenticated = true;
 
-    return { page: this.page, browser: this.browser };
+    return { page, browser };
   }
 
   async verifySession(): Promise<boolean> {
     try {
       const { page } = await this.getAuthenticatedPage(PARFUMO_URLS.login);
-      const loggedIn = await this.isLoggedIn(page);
-      await this.closeBrowser();
+      const loggedIn = await isLoggedIn(page);
+      await page.close();
       return loggedIn;
     } catch (error) {
-      await this.closeBrowser();
       if (error instanceof SessionExpiredError) return false;
       throw error;
     }
   }
 
-  private async dismissCookieConsent(): Promise<void> {
-    if (!this.page) return;
-    try {
-      const iframeSelector = 'iframe[id^="sp_message_iframe"]';
-      const iframeEl = await this.page.$(iframeSelector);
-      if (!iframeEl) return;
-
-      const frame = await iframeEl.contentFrame();
-      if (!frame) return;
-
-      const acceptSelectors = [
-        'button[title="Accept"]',
-        'button.sp_choice_type_11',
-      ];
-      for (const sel of acceptSelectors) {
-        try {
-          await frame.waitForSelector(sel, { timeout: 3000 });
-          await frame.click(sel);
-          logger.debug('Dismissed cookie consent popup');
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          return;
-        } catch { /* try next */ }
-      }
-    } catch {
-      logger.debug('No cookie consent popup found');
-    }
-  }
-
   async closeBrowser(): Promise<void> {
-    try {
-      if (this.page && !this.page.isClosed()) {
-        await this.page.close();
+    const browser = sharedBrowser;
+    if (!browser || !browser.connected) return;
+    const pages = await browser.pages();
+    for (const p of pages) {
+      if (p.url() !== 'about:blank') {
+        await p.close().catch(() => {});
       }
-    } catch { /* ignore */ }
-    this.page = null;
-
-    try {
-      if (this.browser && this.browser.connected) {
-        await this.browser.close();
-      }
-    } catch { /* ignore */ }
-    this.browser = null;
+    }
   }
 }

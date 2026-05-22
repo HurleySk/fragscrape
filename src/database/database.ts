@@ -226,7 +226,7 @@ class DatabaseService {
       )
     `);
 
-    // Parfumo session table (single row — id always 1)
+    // Parfumo session table (single row - id always 1)
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS parfumo_session (
         id INTEGER PRIMARY KEY CHECK (id = 1),

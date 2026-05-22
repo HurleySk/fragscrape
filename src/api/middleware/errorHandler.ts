@@ -71,7 +71,7 @@ export class ParfumoUIError extends AppError {
 
 export class SessionExpiredError extends AppError {
   constructor() {
-    super(401, 'Parfumo session expired — call POST /api/auth/login to re-authenticate');
+    super(401, 'Parfumo session expired - call POST /api/auth/login to re-authenticate');
     this.name = 'SessionExpiredError';
     Object.setPrototypeOf(this, SessionExpiredError.prototype);
   }

@@ -119,7 +119,7 @@ const startServer = async () => {
     await database.initialize();
 
     if (!isProxyConfigured()) {
-      logger.warn('DECODO_PROXY_URL is not set — proxy requests will fail');
+      logger.warn('DECODO_PROXY_URL is not set - proxy requests will fail');
     }
 
     // Start server
