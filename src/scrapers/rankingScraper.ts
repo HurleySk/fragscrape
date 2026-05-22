@@ -19,9 +19,9 @@ export interface RankingResult {
 }
 
 const CATEGORY_URLS: Record<string, string> = {
-  mens: '/Rankings/Best_Perfumes_of_All_Time/Men',
-  womens: '/Rankings/Best_Perfumes_of_All_Time/Women',
-  unisex: '/Rankings/Best_Perfumes_of_All_Time/Unisex',
+  mens: '/Perfumes/Tops/Men',
+  womens: '/Perfumes/Tops/Women',
+  unisex: '/Perfumes/Tops/Unisex',
 };
 
 class RankingScraper {
@@ -35,22 +35,32 @@ class RankingScraper {
       throw new Error(`Unknown category: ${category}`);
     }
 
-    const url = `${this.baseUrl}${categoryPath}${page > 1 ? `?page=${page}` : ''}`;
+    const url = `${this.baseUrl}${categoryPath}${page > 1 ? `?current_page=${page}` : ''}`;
     logger.info(`Scraping ranking page: ${url}`);
 
     await browserClient.delay(getRandomDelay(SCRAPING_DELAYS.RANKING_MIN, SCRAPING_DELAYS.RANKING_MAX));
     const html = await browserClient.getPageContent(url);
     const $ = cheerio.load(html);
 
+    // Debug: dump HTML to inspect structure
+    if (process.env.DEBUG_HTML === 'true') {
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const debugPath = path.join('C:', 'Users', 'shurley', 'source', 'repos', 'HurleySk', 'fragscrape', `debug_ranking_${category}_p${page}.html`);
+      await fs.writeFile(debugPath, html);
+      logger.info(`DEBUG: Saved HTML (${html.length} bytes) to ${debugPath}`);
+    }
+
     const items: RankedFragrance[] = [];
     const baseRank = (page - 1) * limit;
 
+    // Parfumo uses .pgrid .col for perfume grid items, with .name a for links
+    // Also try other known patterns as fallbacks
     const selectors = [
-      '.ranking-item',
-      '.perfume-ranking-row',
-      '[class*="ranking"] .perfume-item',
-      '#main .ranking_list .ranking_entry',
-      '.ranking_entry',
+      '.pgrid .col',
+      '.pgrid-small .col',
+      '.col:has(.name a[href*="/Perfumes/"])',
+      '.name:has(a[href*="/Perfumes/"])',
     ];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -67,7 +77,6 @@ class RankingScraper {
     if (!$items || $items.length === 0) {
       logger.warn(`No ranking items found on ${url}. Selectors tried: ${selectors.join(', ')}`);
       logger.debug(`Page title: ${$('title').text()}`);
-      logger.debug(`Body classes: ${$('body').attr('class')}`);
       return { category, page, items: [] };
     }
 
@@ -76,41 +85,34 @@ class RankingScraper {
       if (items.length >= limit) return false;
 
       const $elem = $(elem);
-      const $link = $elem.find('a[href*="/Perfumes/"], a[href*="/perfumes/"]').first();
-      if (!$link.length) return;
-
-      const href = $link.attr('href') || '';
-      const fullText = $link.text().trim();
-
-      let brand = '';
-      let name = '';
-      const $brand = $elem.find('.brand, [class*="brand"]');
-      const $name = $elem.find('.name, [class*="name"], .perfume_name');
-
-      if ($brand.length && $name.length) {
-        brand = $brand.text().trim();
-        name = $name.text().trim();
-      } else {
-        const urlParts = href.split('/').filter(Boolean);
-        const perfumeIdx = urlParts.findIndex(p => p.toLowerCase() === 'perfumes');
-        if (perfumeIdx >= 0 && urlParts.length > perfumeIdx + 2) {
-          brand = decodeURIComponent(urlParts[perfumeIdx + 1]).replace(/_/g, ' ');
-          name = decodeURIComponent(urlParts[perfumeIdx + 2]).replace(/_/g, ' ');
-        } else {
-          name = fullText;
-        }
+      const $link = $elem.find('.name a[href*="/Perfumes/"]').first();
+      if (!$link.length) {
+        // Fallback: any link to a perfume page
+        const $anyLink = $elem.find('a[href*="/Perfumes/"]').first();
+        if (!$anyLink.length) return;
       }
 
-      const yearMatch = $elem.text().match(/\b(19|20)\d{2}\b/);
-      const year = yearMatch ? parseInt(yearMatch[0], 10) : undefined;
+      // Parfumo structure: .name > a (perfume link) + .brand > a (brand link)
+      const $nameLink = $elem.find('.name > a[href*="/Perfumes/"]').first();
+      if (!$nameLink.length) return;
+
+      const href = $nameLink.attr('href') || '';
+      if (!href) return;
+
+      const name = $nameLink.text().trim();
+      const $brandLink = $elem.find('.brand a[href*="/Perfumes/"]').first();
+      const brand = $brandLink.length ? $brandLink.text().trim() : '';
+
+      // Extract rank from .place element if available, otherwise use position
+      const $place = $elem.find('.place');
+      const rank = $place.length ? parseInt($place.text().trim(), 10) : baseRank + i + 1;
 
       if (name) {
         items.push({
-          rank: baseRank + i + 1,
+          rank: isNaN(rank) ? baseRank + i + 1 : rank,
           name,
           brand,
           url: href,
-          year,
         });
       }
     });

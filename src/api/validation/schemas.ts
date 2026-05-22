@@ -103,7 +103,7 @@ export const rankingsQuerySchema = z.object({
     return num;
   }),
   limit: z.string().optional().transform((val) => {
-    if (!val) return 50;
+    if (!val) return 100;
     const num = parseInt(val, 10);
     if (isNaN(num) || num < 1 || num > 100) {
       throw new Error('Limit must be between 1 and 100');
