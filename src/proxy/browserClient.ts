@@ -2,7 +2,7 @@ import { Browser, Page } from 'puppeteer';
 import puppeteerExtra from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import * as cheerio from 'cheerio';
-import { getProxyConfig } from './proxyConfig';
+import { getProxyConfig, isProxyConfigured } from './proxyConfig';
 import logger from '../utils/logger';
 import config from '../config/config';
 import { ScraperError } from '../api/middleware/errorHandler';
@@ -23,43 +23,46 @@ class BrowserClient extends BaseProxyClient implements IBrowserClient {
    */
   private async getBrowser(): Promise<Browser> {
     if (!this.browser || !this.browser.connected) {
-      const sessionId = this.getSessionId();
-      const proxyConfig = getProxyConfig(sessionId);
+      const useProxy = isProxyConfigured();
+      const proxyConfig = useProxy ? getProxyConfig(this.getSessionId()) : null;
 
-      // Store credentials for page authentication
-      const proxyAuth = {
-        username: proxyConfig.username,
-        password: proxyConfig.password,
-      };
+      const args = [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--disable-gpu',
+        '--window-size=1920x1080',
+      ];
 
-      logger.info(`Launching browser with proxy: ${proxyConfig.endpoint}:${proxyConfig.port} (session: ${sessionId})`);
+      if (proxyConfig) {
+        args.push(`--proxy-server=http://${proxyConfig.endpoint}:${proxyConfig.port}`);
+        logger.info(`Launching browser with proxy: ${proxyConfig.endpoint}:${proxyConfig.port} (session: ${this.getSessionId()})`);
+      } else {
+        logger.info('Launching browser in direct mode (no proxy configured)');
+      }
 
       const launchOptions: any = {
         headless: true,
-        args: [
-          `--proxy-server=http://${proxyConfig.endpoint}:${proxyConfig.port}`,
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--disable-gpu',
-          '--window-size=1920x1080',
-        ],
+        args,
         defaultViewport: {
           width: 1920,
           height: 1080,
         },
       };
 
-      // Use custom executable path if configured (useful for ARM64 or custom Chrome installations)
       if (config.browser.executablePath) {
         launchOptions.executablePath = config.browser.executablePath;
       }
 
       this.browser = await puppeteerExtra.launch(launchOptions);
 
-      // Store auth credentials for use in getPage()
-      (this.browser as any).proxyAuth = proxyAuth;
+      if (proxyConfig) {
+        (this.browser as any).proxyAuth = {
+          username: proxyConfig.username,
+          password: proxyConfig.password,
+        };
+      }
 
       logger.info('Browser launched successfully');
     }
@@ -289,8 +292,11 @@ class BrowserClient extends BaseProxyClient implements IBrowserClient {
    * Test the proxy connection with the browser
    */
   async testConnection(): Promise<boolean> {
+    if (!isProxyConfigured()) {
+      logger.info('No proxy configured - browser operating in direct mode');
+      return true;
+    }
     try {
-      // Test with IP check service
       const html = await this.getPageContent('https://ip.decodo.com/');
       logger.info(`Browser proxy test successful. Response length: ${html.length}`);
       return true;

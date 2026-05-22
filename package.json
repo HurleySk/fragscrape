@@ -1,6 +1,6 @@
 {
   "name": "fragscrape",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "description": "API for scraping fragrance data from Parfumo with saved queries, progress tracking, and collection management",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

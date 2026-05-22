@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
-import { getProxyConfig } from './proxyConfig';
+import { getProxyConfig, isProxyConfigured } from './proxyConfig';
 import logger from '../utils/logger';
 import { ProxyError, RateLimitError } from '../api/middleware/errorHandler';
 import { IHttpClient } from './types';
@@ -14,9 +14,6 @@ class HttpClient extends BaseProxyClient implements IHttpClient {
    * Create an axios instance with proxy configuration
    */
   private async createAxiosInstance(): Promise<AxiosInstance> {
-    const sessionId = this.getSessionId();
-    const proxyConfig = getProxyConfig(sessionId);
-
     const axiosConfig: AxiosRequestConfig = {
       timeout: TIMEOUT_CONFIG.HTTP_TIMEOUT,
       maxRedirects: 10,
@@ -29,7 +26,12 @@ class HttpClient extends BaseProxyClient implements IHttpClient {
         'Connection': 'keep-alive',
         'Upgrade-Insecure-Requests': '1',
       },
-      proxy: {
+    };
+
+    if (isProxyConfigured()) {
+      const sessionId = this.getSessionId();
+      const proxyConfig = getProxyConfig(sessionId);
+      axiosConfig.proxy = {
         host: proxyConfig.endpoint,
         port: proxyConfig.port,
         auth: {
@@ -37,10 +39,11 @@ class HttpClient extends BaseProxyClient implements IHttpClient {
           password: proxyConfig.password,
         },
         protocol: 'http',
-      },
-    };
-
-    logger.info(`HTTP client created with proxy: ${proxyConfig.endpoint}:${proxyConfig.port} (session: ${sessionId})`);
+      };
+      logger.info(`HTTP client created with proxy: ${proxyConfig.endpoint}:${proxyConfig.port} (session: ${sessionId})`);
+    } else {
+      logger.info('HTTP client created in direct mode (no proxy configured)');
+    }
 
     return axios.create(axiosConfig);
   }
@@ -118,8 +121,11 @@ class HttpClient extends BaseProxyClient implements IHttpClient {
    * Test the proxy connection
    */
   async testConnection(): Promise<boolean> {
+    if (!isProxyConfigured()) {
+      logger.info('No proxy configured - HTTP client operating in direct mode');
+      return true;
+    }
     try {
-      // Test with a simple IP check service
       const response = await this.get('https://ip.decodo.com/');
       logger.info(`Proxy test successful. Current IP: ${JSON.stringify(response)}`);
       return true;
