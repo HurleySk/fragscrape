@@ -1,4 +1,4 @@
-# Fragscrape API v3.3.0
+# Fragscrape API v3.3.2
 
 A web scraping API for perfume and fragrance data from Parfumo, built with TypeScript, Express, and optional Decodo rotating residential proxies. Features saved queries with progress tracking, tagging, collection management, and Parfumo account integration.
 
@@ -279,7 +279,7 @@ Each perfume response includes:
 
 **Basic Information**: brand, name, year, url, imageUrl, concentration, gender, description
 
-**Fragrance Notes**: top, heart, and base notes arrays
+**Fragrance Notes**: top, heart, and base notes arrays (categorized by prominence when Parfumo uses flat note lists)
 
 **Ratings** (with vote counts):
 - `rating` / `totalRatings` - Overall scent rating

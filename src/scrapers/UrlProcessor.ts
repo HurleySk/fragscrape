@@ -34,8 +34,12 @@ export class UrlProcessor {
    * Clean and capitalize perfume name
    */
   cleanPerfumeName(name: string): string {
-    // Remove concentration types
-    let cleaned = name.replace(/\s+(Eau de Parfum|Eau de Toilette|Parfum|Cologne|Extrait)$/i, '').trim();
+    // Remove concentration types, but not when preceded by articles that make them part of the name
+    // e.g., keep "Le Parfum" in "Le Mâle Le Parfum" but strip " Eau de Parfum"
+    let cleaned = name
+      .replace(/\s+(Eau de Parfum|Eau de Toilette|Extrait de Parfum)$/i, '')
+      .replace(/(?<!\b(?:Le|La|The|Il|El|Das|De)\s)(Parfum|Cologne|Extrait)$/i, '')
+      .trim();
 
     // Capitalize first letter of each word
     cleaned = cleaned.split(' ').map(word =>

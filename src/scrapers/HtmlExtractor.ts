@@ -88,6 +88,17 @@ export class HtmlExtractor {
           notes.heart.push(note);
         } else if (category === 'b') {
           notes.base.push(note);
+        } else if (category === 'n') {
+          const fontClass = $elem.attr('class') || '';
+          const fontMatch = fontClass.match(/notefont(\d)/);
+          const prominence = fontMatch ? parseInt(fontMatch[1], 10) : 3;
+          if (prominence >= 4) {
+            notes.top.push(note);
+          } else if (prominence >= 2) {
+            notes.heart.push(note);
+          } else {
+            notes.base.push(note);
+          }
         }
       });
     });
@@ -105,7 +116,7 @@ export class HtmlExtractor {
   extractAccords($: cheerio.CheerioAPI): string[] {
     const accords: string[] = [];
 
-    $('.accord, .perfume-accord, [class*="accord"]').each((_, elem) => {
+    $('.s-circle-container .text-xs').each((_, elem) => {
       const accord = $(elem).text().trim();
       if (accord && !accord.includes('%')) {
         accords.push(accord);
@@ -349,7 +360,7 @@ export class HtmlExtractor {
     let selectedRating: number | null = null;
     let selectedRatingCount: number | null = null;
 
-    $('[itemtype="http://schema.org/AggregateRating"]').each((_, elem) => {
+    $('[itemtype="https://schema.org/AggregateRating"]').each((_, elem) => {
       const $container = $(elem);
       const ratingValueText = $container.find('[itemprop="ratingValue"]').text().trim();
       const ratingCountText = $container.find('[itemprop="ratingCount"]').text().trim();

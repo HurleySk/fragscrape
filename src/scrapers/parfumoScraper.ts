@@ -158,7 +158,7 @@ class ParfumoScraper {
 
       // Get page content and wait for rating containers to appear (indicates JavaScript has fully rendered)
       // We wait for both the rating value and durability selector to ensure full page load
-      const html = await browserClient.getPageContent(fullUrl, '[itemprop="aggregateRating"]', ['.sim_item']);
+      const html = await browserClient.getPageContent(fullUrl, '[itemprop="aggregateRating"]', ['.sim_item', '.s-circle-container', '.notes_list']);
 
       // Debug: Save HTML to file for inspection if DEBUG_HTML is enabled
       if (process.env.DEBUG_HTML === 'true') {
