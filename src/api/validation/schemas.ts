@@ -89,3 +89,28 @@ export const brandQuerySchema = z.object({
 
 export type BrandQuery = z.infer<typeof brandQuerySchema>;
 
+/**
+ * Rankings query params validation
+ */
+export const rankingsQuerySchema = z.object({
+  category: z.enum(['mens', 'womens', 'unisex']),
+  page: z.string().optional().transform((val) => {
+    if (!val) return 1;
+    const num = parseInt(val, 10);
+    if (isNaN(num) || num < 1 || num > 20) {
+      throw new Error('Page must be between 1 and 20');
+    }
+    return num;
+  }),
+  limit: z.string().optional().transform((val) => {
+    if (!val) return 50;
+    const num = parseInt(val, 10);
+    if (isNaN(num) || num < 1 || num > 100) {
+      throw new Error('Limit must be between 1 and 100');
+    }
+    return num;
+  }),
+});
+
+export type RankingsQuery = z.infer<typeof rankingsQuerySchema>;
+

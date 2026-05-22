@@ -17,6 +17,11 @@ export const SCRAPING_DELAYS = {
   BRAND_MIN: 1000,
   BRAND_MAX: 2000,
   BRAND_RANGE: 1000,
+
+  // Ranking page delays (ms)
+  RANKING_MIN: 2000,
+  RANKING_MAX: 4000,
+  RANKING_RANGE: 2000,
 };
 
 export const RETRY_CONFIG = {
