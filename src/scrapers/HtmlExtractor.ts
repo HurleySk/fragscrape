@@ -573,6 +573,7 @@ export class HtmlExtractor {
       if (name && percentage > 0) {
         similar.push({ name, similarity: percentage });
       }
+      return;
     });
 
     if (similar.length > 0) return similar;
@@ -580,9 +581,10 @@ export class HtmlExtractor {
     $('.similar-perfume, .similar-fragrance, [class*="similar"] a').each((_, elem) => {
       if (similar.length >= limit) return false;
       const name = $(elem).text().trim();
-      if (name) {
+      if (name && name.toLowerCase() !== 'my suggestion') {
         similar.push({ name, similarity: 0 });
       }
+      return;
     });
 
     return similar;

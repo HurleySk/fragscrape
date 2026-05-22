@@ -1,4 +1,4 @@
-# Fragscrape API v3.2.0
+# Fragscrape API v3.3.0
 
 A web scraping API for perfume and fragrance data from Parfumo, built with TypeScript, Express, and optional Decodo rotating residential proxies. Features saved queries with progress tracking, tagging, collection management, and Parfumo account integration.
 

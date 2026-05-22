@@ -41,7 +41,7 @@ export interface IBrowserClient extends BaseProxyClient {
   /**
    * Navigate to a URL and return the HTML content
    */
-  getPageContent(url: string, waitForSelector?: string): Promise<string>;
+  getPageContent(url: string, waitForSelector?: string, additionalWaitSelectors?: string[]): Promise<string>;
 
   /**
    * Close all browser resources

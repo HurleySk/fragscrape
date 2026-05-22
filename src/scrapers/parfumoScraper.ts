@@ -80,8 +80,8 @@ class ParfumoScraper {
 
             // Parse brand and name from URL
             const urlParts = fullUrl.split('/');
-            const brand = urlParts[4].replace(/_/g, ' ');
-            const [name, year] = this.urlProcessor.processPerfumeName(urlParts[5]);
+            const brand = decodeURIComponent(urlParts[4]).replace(/_/g, ' ');
+            const [name, year] = this.urlProcessor.processPerfumeName(decodeURIComponent(urlParts[5]));
 
             // Calculate relevance score
             const relevanceScore = this.urlProcessor.calculateRelevance(query, brand, name);
@@ -158,7 +158,7 @@ class ParfumoScraper {
 
       // Get page content and wait for rating containers to appear (indicates JavaScript has fully rendered)
       // We wait for both the rating value and durability selector to ensure full page load
-      const html = await browserClient.getPageContent(fullUrl, '[itemprop="aggregateRating"]');
+      const html = await browserClient.getPageContent(fullUrl, '[itemprop="aggregateRating"]', ['.sim_item']);
 
       // Debug: Save HTML to file for inspection if DEBUG_HTML is enabled
       if (process.env.DEBUG_HTML === 'true') {
@@ -180,8 +180,8 @@ class ParfumoScraper {
       let year: number | undefined;
 
       if (urlParts.length >= 6) {
-        brand = urlParts[4].replace(/_/g, ' ');
-        [name, year] = this.urlProcessor.processPerfumeName(urlParts[5]);
+        brand = decodeURIComponent(urlParts[4]).replace(/_/g, ' ');
+        [name, year] = this.urlProcessor.processPerfumeName(decodeURIComponent(urlParts[5]));
       }
 
       // Extract other information
@@ -303,8 +303,8 @@ class ParfumoScraper {
         const urlParts = fullUrl.split('/');
         if (urlParts.length < 6) return;
 
-        const extractedBrand = urlParts[4].replace(/_/g, ' ');
-        const [name, year] = this.urlProcessor.processPerfumeName(urlParts[5]);
+        const extractedBrand = decodeURIComponent(urlParts[4]).replace(/_/g, ' ');
+        const [name, year] = this.urlProcessor.processPerfumeName(decodeURIComponent(urlParts[5]));
 
         // Try to find rating
         const $container = $nameElement.closest('div');

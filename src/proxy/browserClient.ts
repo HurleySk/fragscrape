@@ -128,8 +128,8 @@ class BrowserClient extends BaseProxyClient implements IBrowserClient {
           const urlParts = urlStr.split('/');
           if (urlParts.length < 6) return null;
 
-          const brand = urlParts[4].replace(/_/g, ' ').toLowerCase().trim();
-          const nameWithYear = urlParts[5];
+          const brand = decodeURIComponent(urlParts[4]).replace(/_/g, ' ').toLowerCase().trim();
+          const nameWithYear = decodeURIComponent(urlParts[5]);
           // Remove year suffix (e.g., _2015) if present
           const name = nameWithYear.replace(/_\d{4}$/, '').replace(/_/g, ' ').toLowerCase().trim();
 
@@ -169,7 +169,7 @@ class BrowserClient extends BaseProxyClient implements IBrowserClient {
   /**
    * Navigate to a URL and return the HTML content with retry logic
    */
-  async getPageContent(url: string, waitForSelector?: string): Promise<string> {
+  async getPageContent(url: string, waitForSelector?: string, additionalWaitSelectors?: string[]): Promise<string> {
     return retryWithBackoff(async () => {
       try {
         const page = await this.getPage();
@@ -194,6 +194,18 @@ class BrowserClient extends BaseProxyClient implements IBrowserClient {
           }
           // Add extra delay to let JavaScript finish rendering all content
           await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+
+        // Wait for additional selectors (non-blocking — continues if they don't appear)
+        if (additionalWaitSelectors && additionalWaitSelectors.length > 0) {
+          for (const selector of additionalWaitSelectors) {
+            try {
+              await page.waitForSelector(selector, { timeout: 5000 });
+              logger.debug(`Additional selector found: ${selector}`);
+            } catch {
+              logger.warn(`Additional selector '${selector}' not found within 5s, continuing`);
+            }
+          }
         }
 
         // Get the HTML content
