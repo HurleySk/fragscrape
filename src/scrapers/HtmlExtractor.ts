@@ -532,12 +532,15 @@ export class HtmlExtractor {
   }
 
   extractProductionStatus($: cheerio.CheerioAPI): 'in-production' | 'discontinued' | 'unknown' {
-    const desc = $('.p_details_desc').text();
-    if (/still in production/i.test(desc)) return 'in-production';
-    if (/production was.*discontinued/i.test(desc)) return 'discontinued';
-    const bodyText = $('body').text();
-    if (/still in production/i.test(bodyText)) return 'in-production';
-    if (/production was.*discontinued/i.test(bodyText)) return 'discontinued';
+    const sources = [
+      $('.p_details_desc').text(),
+      $('[itemprop="description"]').text(),
+      $('body').text(),
+    ];
+    for (const text of sources) {
+      if (/still in production/i.test(text)) return 'in-production';
+      if (/production was.*discontinued/i.test(text)) return 'discontinued';
+    }
     return 'unknown';
   }
 
@@ -600,8 +603,7 @@ export class HtmlExtractor {
         name = byMatch[1].trim();
         brand = byMatch[2].trim();
       } else {
-        const nameMatch = alt.match(/^(.+)\s+by\s+/);
-        name = nameMatch ? nameMatch[1].trim() : alt.trim();
+        name = alt.trim();
       }
 
       if (name && percentage > 0) {
