@@ -455,6 +455,34 @@ class DatabaseService {
     );
   }
 
+  clearCache(type: 'all' | 'perfumes' | 'search' | 'expired' = 'all'): { perfumesCleared: number; searchesCleared: number; totalCleared: number } {
+    if (!this.db) throw new DatabaseError('Database not initialized');
+
+    let perfumesCleared = 0;
+    let searchesCleared = 0;
+
+    if (type === 'all' || type === 'perfumes') {
+      const result = this.db.prepare('DELETE FROM perfumes').run();
+      perfumesCleared = result.changes;
+    }
+
+    if (type === 'all' || type === 'search') {
+      const result = this.db.prepare('DELETE FROM search_cache').run();
+      searchesCleared = result.changes;
+    }
+
+    if (type === 'expired') {
+      const perfumeMaxAge = config.cache.perfumeDurationSeconds;
+      const searchMaxAge = config.cache.searchDurationSeconds;
+      const pResult = this.db.prepare(`DELETE FROM perfumes WHERE scraped_at < datetime('now', '-' || ? || ' seconds')`).run(perfumeMaxAge);
+      perfumesCleared = pResult.changes;
+      const sResult = this.db.prepare(`DELETE FROM search_cache WHERE cached_at < datetime('now', '-' || ? || ' seconds')`).run(searchMaxAge);
+      searchesCleared = sResult.changes;
+    }
+
+    return { perfumesCleared, searchesCleared, totalCleared: perfumesCleared + searchesCleared };
+  }
+
   healthCheck(): boolean {
     if (!this.db) return false;
     try {

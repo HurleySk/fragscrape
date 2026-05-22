@@ -244,6 +244,15 @@ curl http://localhost:3000/api/sync/diff
 | POST | `/api/sync/push` | Push local data to Parfumo |
 | POST | `/api/sync/pull` | Pull Parfumo data locally |
 
+### Cache
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| DELETE | `/api/cache?type=all` | Clear all cached data |
+| DELETE | `/api/cache?type=perfumes` | Clear perfume cache only |
+| DELETE | `/api/cache?type=search` | Clear search cache only |
+| DELETE | `/api/cache?type=expired` | Clear only expired entries |
+
 ### System
 
 | Method | Endpoint | Description |
