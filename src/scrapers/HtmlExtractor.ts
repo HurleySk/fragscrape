@@ -123,6 +123,10 @@ export class HtmlExtractor {
       }
     });
 
+    if (accords.length === 0) {
+      logger.warn('No accords found — Parfumo may have changed their DOM structure');
+    }
+
     return accords;
   }
 

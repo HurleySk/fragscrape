@@ -38,7 +38,7 @@ export class UrlProcessor {
     // e.g., keep "Le Parfum" in "Le Mâle Le Parfum" but strip " Eau de Parfum"
     let cleaned = name
       .replace(/\s+(Eau de Parfum|Eau de Toilette|Extrait de Parfum)$/i, '')
-      .replace(/(?<!\b(?:Le|La|The|Il|El|Das|De)\s)(Parfum|Cologne|Extrait)$/i, '')
+      .replace(/(?<!\b(?:Le|La|The|Il|El|Das|De))\s+(Parfum|Cologne|Extrait)$/i, '')
       .trim();
 
     // Capitalize first letter of each word
