@@ -1,6 +1,6 @@
-# Fragscrape API v3.1.0
+# Fragscrape API v3.2.0
 
-A web scraping API for perfume and fragrance data from Parfumo, built with TypeScript, Express, and Decodo rotating residential proxies. Features saved queries with progress tracking, tagging, collection management, and Parfumo account integration.
+A web scraping API for perfume and fragrance data from Parfumo, built with TypeScript, Express, and optional Decodo rotating residential proxies. Features saved queries with progress tracking, tagging, collection management, and Parfumo account integration.
 
 ## Features
 
@@ -8,7 +8,7 @@ A web scraping API for perfume and fragrance data from Parfumo, built with TypeS
 - **Collection Management**: Tag perfumes ("want to try", "own", "tested", "pass"), add notes and interest ratings
 - **Parfumo Account Integration**: Log in to Parfumo via browser handoff, manage collection/wishlist, submit ratings
 - **Bidirectional Sync**: Push local tags to Parfumo collections, pull Parfumo data locally
-- **Residential Proxy Rotation**: Decodo rotating proxies via a single `DECODO_PROXY_URL`
+- **Optional Proxy Support**: Decodo rotating residential proxies via `DECODO_PROXY_URL` — works without a proxy using direct connections
 - **Data Caching**: SQLite database for caching perfume details and search results
 - **Tag-Based Cleanup**: Delete perfumes you've tagged "pass" - no automatic expiry
 - **Rate Limiting**: Configurable rate limiting to respect target websites
@@ -17,8 +17,8 @@ A web scraping API for perfume and fragrance data from Parfumo, built with TypeS
 ## Prerequisites
 
 - Node.js v18+ and npm
-- Decodo account with residential proxy access
 - Chrome/Chromium (bundled with Puppeteer, or set `BROWSER_EXECUTABLE_PATH`)
+- (Optional) Decodo account with residential proxy access
 
 ## Installation
 
@@ -41,12 +41,13 @@ Create environment file:
 cp .env.example .env
 ```
 
-Set your Decodo proxy URL in `.env`:
+Optionally set your Decodo proxy URL in `.env` (scraping works without it via direct connections):
 ```env
+# Optional — omit to use direct connections
 DECODO_PROXY_URL=http://user-USERNAME-country-us:PASSWORD@gate.decodo.com:7000
 ```
 
-Get credentials from your [Decodo dashboard](https://dashboard.decodo.com) under residential proxy settings.
+Get proxy credentials from your [Decodo dashboard](https://dashboard.decodo.com) under residential proxy settings.
 
 ## Usage
 
@@ -290,7 +291,7 @@ All configuration is done through environment variables:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `DECODO_PROXY_URL` | Full proxy URL with credentials | - |
+| `DECODO_PROXY_URL` | Full proxy URL with credentials (optional) | _(direct mode)_ |
 | `PORT` | API server port | 3000 |
 | `NODE_ENV` | Environment mode | development |
 | `DATABASE_PATH` | SQLite database path | ./data/fragscrape.db |
@@ -349,8 +350,8 @@ npm test
 ## Troubleshooting
 
 ### Proxy Connection Failed
-1. Check `DECODO_PROXY_URL` in `.env`
-2. Test connection: `GET /api/proxy/test`
+1. Check `DECODO_PROXY_URL` in `.env` (omit to use direct connections without a proxy)
+2. Test connection: `GET /api/proxy/test` — response includes `proxyEnabled` to confirm whether proxy is active
 3. Verify credentials on the [Decodo dashboard](https://dashboard.decodo.com)
 
 ### Parfumo Login Issues

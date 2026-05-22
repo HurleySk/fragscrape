@@ -64,7 +64,7 @@ class HttpClient extends BaseProxyClient implements IHttpClient {
   async reset(): Promise<void> {
     this.axiosInstance = null;
     this.resetSessionId();
-    logger.info('HTTP client reset - will use new proxy and session on next request');
+    logger.info('HTTP client reset - will reconnect on next request');
   }
 
   /**

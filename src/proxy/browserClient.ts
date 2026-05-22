@@ -282,7 +282,7 @@ class BrowserClient extends BaseProxyClient implements IBrowserClient {
 
       this.resetSessionId();
 
-      logger.info('Browser client reset - will use new proxy on next request');
+      logger.info('Browser client reset - will reconnect on next request');
     } catch (error) {
       logger.error('Error resetting browser:', error);
     }
