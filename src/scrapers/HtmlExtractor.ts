@@ -531,6 +531,16 @@ export class HtmlExtractor {
     return perfumer;
   }
 
+  extractProductionStatus($: cheerio.CheerioAPI): 'in-production' | 'discontinued' | 'unknown' {
+    const desc = $('.p_details_desc').text();
+    if (/still in production/i.test(desc)) return 'in-production';
+    if (/production was.*discontinued/i.test(desc)) return 'discontinued';
+    const bodyText = $('body').text();
+    if (/still in production/i.test(bodyText)) return 'in-production';
+    if (/production was.*discontinued/i.test(bodyText)) return 'discontinued';
+    return 'unknown';
+  }
+
   /**
    * Extract main image URL
    */
@@ -570,8 +580,8 @@ export class HtmlExtractor {
   /**
    * Extract similar fragrances
    */
-  extractSimilarFragrances($: cheerio.CheerioAPI, limit: number = 10): { name: string; similarity: number }[] {
-    const similar: { name: string; similarity: number }[] = [];
+  extractSimilarFragrances($: cheerio.CheerioAPI, limit: number = 10): { name: string; brand?: string; similarity: number }[] {
+    const similar: { name: string; brand?: string; similarity: number }[] = [];
 
     $('.sim_item').each((_, elem) => {
       if (similar.length >= limit) return false;
@@ -582,11 +592,20 @@ export class HtmlExtractor {
       const bar = $elem.find('.fill[data-percentage]');
       const percentage = parseFloat(bar.attr('data-percentage') || '0');
 
-      const nameMatch = alt.match(/^(.+)\s+by\s+/);
-      const name = nameMatch ? nameMatch[1].trim() : alt.trim();
+      const byMatch = alt.match(/^(.+)\s+by\s+(.+)$/);
+      let name: string;
+      let brand: string | undefined;
+
+      if (byMatch) {
+        name = byMatch[1].trim();
+        brand = byMatch[2].trim();
+      } else {
+        const nameMatch = alt.match(/^(.+)\s+by\s+/);
+        name = nameMatch ? nameMatch[1].trim() : alt.trim();
+      }
 
       if (name && percentage > 0) {
-        similar.push({ name, similarity: percentage });
+        similar.push({ name, brand, similarity: percentage });
       }
       return;
     });
