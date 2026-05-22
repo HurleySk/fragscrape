@@ -411,7 +411,12 @@ class DatabaseService {
       rank: row.rank || undefined,
       rankCategory: row.rank_category || undefined,
       perfumer: row.perfumer || undefined,
-      similarFragrances: JSON.parse(row.similar_fragrances || '[]'),
+      similarFragrances: (() => {
+        const raw = JSON.parse(row.similar_fragrances || '[]');
+        if (raw.length === 0) return [];
+        if (typeof raw[0] === 'string') return raw.map((name: string) => ({ name, similarity: 0 }));
+        return raw;
+      })(),
       scrapedAt: new Date(row.scraped_at),
     };
   }

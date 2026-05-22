@@ -555,17 +555,37 @@ export class HtmlExtractor {
   /**
    * Extract similar fragrances
    */
-  extractSimilarFragrances($: cheerio.CheerioAPI, limit: number = 10): string[] {
-    const similar: string[] = [];
+  extractSimilarFragrances($: cheerio.CheerioAPI, limit: number = 10): { name: string; similarity: number }[] {
+    const similar: { name: string; similarity: number }[] = [];
 
-    $('.similar-perfume, .similar-fragrance, [class*="similar"] a').each((_, elem) => {
-      const name = $(elem).text().trim();
-      if (name) {
-        similar.push(name);
+    $('.sim_item').each((_, elem) => {
+      if (similar.length >= limit) return false;
+
+      const $elem = $(elem);
+      const img = $elem.find('img');
+      const alt = img.attr('alt') || '';
+      const bar = $elem.find('.fill[data-percentage]');
+      const percentage = parseFloat(bar.attr('data-percentage') || '0');
+
+      const nameMatch = alt.match(/^(.+)\s+by\s+/);
+      const name = nameMatch ? nameMatch[1].trim() : alt.trim();
+
+      if (name && percentage > 0) {
+        similar.push({ name, similarity: percentage });
       }
     });
 
-    return similar.slice(0, limit);
+    if (similar.length > 0) return similar;
+
+    $('.similar-perfume, .similar-fragrance, [class*="similar"] a').each((_, elem) => {
+      if (similar.length >= limit) return false;
+      const name = $(elem).text().trim();
+      if (name) {
+        similar.push({ name, similarity: 0 });
+      }
+    });
+
+    return similar;
   }
 
   /**

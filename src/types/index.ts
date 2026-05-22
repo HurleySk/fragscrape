@@ -37,7 +37,7 @@ export interface Perfume {
   rank?: number; // Ranking position (e.g., 26)
   rankCategory?: string; // Category ranked in (e.g., "Men's Perfume")
   perfumer?: string; // Perfumer name(s)
-  similarFragrances?: string[];
+  similarFragrances?: { name: string; similarity: number }[];
   scrapedAt: Date;
 }
 

@@ -97,8 +97,8 @@ export const rankingsQuerySchema = z.object({
   page: z.string().optional().transform((val) => {
     if (!val) return 1;
     const num = parseInt(val, 10);
-    if (isNaN(num) || num < 1 || num > 20) {
-      throw new Error('Page must be between 1 and 20');
+    if (isNaN(num) || num < 1 || num > 100) {
+      throw new Error('Page must be between 1 and 100');
     }
     return num;
   }),
