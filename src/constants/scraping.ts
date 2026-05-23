@@ -45,6 +45,9 @@ export const TIMEOUT_CONFIG = {
   // Cloudflare challenge timeout (ms)
   CLOUDFLARE_CHALLENGE: 30000,
 
+  // Additional wait selector timeout (ms)
+  ADDITIONAL_SELECTOR_WAIT: 8000,
+
   // Graceful shutdown timeout (ms)
   GRACEFUL_SHUTDOWN: 10000,
 };

@@ -103,13 +103,15 @@ export const rankingsQuerySchema = z.object({
     return num;
   }),
   limit: z.string().optional().transform((val) => {
-    if (!val) return 100;
+    if (!val) return 20;
     const num = parseInt(val, 10);
     if (isNaN(num) || num < 1 || num > 100) {
       throw new Error('Limit must be between 1 and 100');
     }
     return num;
   }),
+  production: z.enum(['in-production', 'discontinued', 'all']).optional().default('all'),
+  edition: z.enum(['regular', 'limited', 'collectors', 'all']).optional().default('all'),
 });
 
 export type RankingsQuery = z.infer<typeof rankingsQuerySchema>;

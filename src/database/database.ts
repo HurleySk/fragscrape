@@ -127,6 +127,7 @@ class DatabaseService {
       { column: 'rank', type: 'INTEGER', desc: 'ranking position' },
       { column: 'rank_category', type: 'TEXT', desc: 'ranking category' },
       { column: 'perfumer', type: 'TEXT', desc: 'perfumer name' },
+      { column: 'production_status', type: 'TEXT', desc: 'production status' },
     ];
 
     for (const migration of migrations) {
@@ -290,9 +291,9 @@ class DatabaseService {
         rating, total_ratings, longevity, longevity_rating_count,
         sillage, sillage_rating_count, bottle, bottle_rating_count,
         price_value, price_value_rating_count, review_count, statement_count,
-        photo_count, rank, rank_category, perfumer,
+        photo_count, rank, rank_category, perfumer, production_status,
         similar_fragrances, scraped_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -324,6 +325,7 @@ class DatabaseService {
       perfume.rank || null,
       perfume.rankCategory || null,
       perfume.perfumer || null,
+      perfume.productionStatus || null,
       JSON.stringify(perfume.similarFragrances || []),
       perfume.scrapedAt.toISOString()
     );
@@ -411,6 +413,7 @@ class DatabaseService {
       rank: row.rank || undefined,
       rankCategory: row.rank_category || undefined,
       perfumer: row.perfumer || undefined,
+      productionStatus: (['in-production', 'discontinued', 'unknown'].includes(row.production_status) ? row.production_status : undefined) as 'in-production' | 'discontinued' | 'unknown' | undefined,
       similarFragrances: (() => {
         const raw = JSON.parse(row.similar_fragrances || '[]');
         if (raw.length === 0) return [];
@@ -474,7 +477,7 @@ class DatabaseService {
     if (type === 'expired') {
       const perfumeMaxAge = config.cache.perfumeDurationSeconds;
       const searchMaxAge = config.cache.searchDurationSeconds;
-      const pResult = this.db.prepare(`DELETE FROM perfumes WHERE scraped_at < datetime('now', '-' || ? || ' seconds')`).run(perfumeMaxAge);
+      const pResult = this.db.prepare("DELETE FROM perfumes WHERE scraped_at < datetime('now', '-' || ? || ' seconds')").run(perfumeMaxAge);
       perfumesCleared = pResult.changes;
       const sResult = this.db.prepare(`DELETE FROM search_cache WHERE cached_at < datetime('now', '-' || ? || ' seconds')`).run(searchMaxAge);
       searchesCleared = sResult.changes;

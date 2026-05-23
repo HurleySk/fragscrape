@@ -200,10 +200,10 @@ class BrowserClient extends BaseProxyClient implements IBrowserClient {
         if (additionalWaitSelectors && additionalWaitSelectors.length > 0) {
           for (const selector of additionalWaitSelectors) {
             try {
-              await page.waitForSelector(selector, { timeout: 5000 });
+              await page.waitForSelector(selector, { timeout: TIMEOUT_CONFIG.ADDITIONAL_SELECTOR_WAIT });
               logger.debug(`Additional selector found: ${selector}`);
             } catch {
-              logger.warn(`Additional selector '${selector}' not found within 5s, continuing`);
+              logger.warn(`Additional selector '${selector}' not found within ${TIMEOUT_CONFIG.ADDITIONAL_SELECTOR_WAIT / 1000}s, continuing`);
             }
           }
         }

@@ -18,10 +18,17 @@ export interface RankingResult {
   items: RankedFragrance[];
 }
 
-const CATEGORY_URLS: Record<string, string> = {
-  mens: '/Perfumes/Tops/Men',
-  womens: '/Perfumes/Tops/Women',
-  unisex: '/Perfumes/Tops/Unisex',
+export interface RankingFilters {
+  production?: 'in-production' | 'discontinued' | 'all';
+  edition?: 'regular' | 'limited' | 'collectors' | 'all';
+}
+
+const ITEMS_PER_PAGE = 20;
+
+const GENDER_PARAMS: Record<string, string> = {
+  mens: 'g_m',
+  womens: 'g_f',
+  unisex: 'g_u',
 };
 
 class RankingScraper {
@@ -29,20 +36,39 @@ class RankingScraper {
     return config.scraper.baseUrl;
   }
 
-  async scrapeRankingPage(category: string, page: number, limit: number): Promise<RankingResult> {
-    const categoryPath = CATEGORY_URLS[category];
-    if (!categoryPath) {
+  private buildSearchUrl(category: string, page: number, filters: RankingFilters = {}): string {
+    const params = new URLSearchParams();
+    params.set('in', '1');
+
+    const genderParam = GENDER_PARAMS[category];
+    if (genderParam) params.set(genderParam, '1');
+
+    if (filters.production === 'in-production') params.set('s_0', '1');
+    else if (filters.production === 'discontinued') params.set('s_1', '1');
+
+    if (filters.edition === 'regular') params.set('e_0', '1');
+    else if (filters.edition === 'limited') params.set('e_1', '1');
+    else if (filters.edition === 'collectors') params.set('e_2', '1');
+
+    params.set('o', 'nr_desc');
+
+    if (page > 1) params.set('current_page', page.toString());
+
+    return `${this.baseUrl}/s_perfumes_x.php?${params.toString()}`;
+  }
+
+  async scrapeRankingPage(category: string, page: number, limit: number, filters: RankingFilters = {}): Promise<RankingResult> {
+    if (!GENDER_PARAMS[category]) {
       throw new Error(`Unknown category: ${category}`);
     }
 
-    const url = `${this.baseUrl}${categoryPath}${page > 1 ? `?current_page=${page}` : ''}`;
+    const url = this.buildSearchUrl(category, page, filters);
     logger.info(`Scraping ranking page: ${url}`);
 
     await browserClient.delay(getRandomDelay(SCRAPING_DELAYS.RANKING_MIN, SCRAPING_DELAYS.RANKING_MAX));
     const html = await browserClient.getPageContent(url);
     const $ = cheerio.load(html);
 
-    // Debug: dump HTML to inspect structure
     if (process.env.DEBUG_HTML === 'true') {
       const fs = await import('fs/promises');
       const path = await import('path');
@@ -52,10 +78,8 @@ class RankingScraper {
     }
 
     const items: RankedFragrance[] = [];
-    const baseRank = (page - 1) * limit;
+    const baseRank = (page - 1) * ITEMS_PER_PAGE;
 
-    // Parfumo uses .pgrid .col for perfume grid items, with .name a for links
-    // Also try other known patterns as fallbacks
     const selectors = [
       '.pgrid .col',
       '.pgrid-small .col',
@@ -85,31 +109,23 @@ class RankingScraper {
       if (items.length >= limit) return false;
 
       const $elem = $(elem);
-      const $link = $elem.find('.name a[href*="/Perfumes/"]').first();
-      if (!$link.length) {
-        // Fallback: any link to a perfume page
-        const $anyLink = $elem.find('a[href*="/Perfumes/"]').first();
-        if (!$anyLink.length) return;
-      }
 
-      // Parfumo structure: .name > a (perfume link) + .brand > a (brand link)
-      const $nameLink = $elem.find('.name > a[href*="/Perfumes/"]').first();
-      if (!$nameLink.length) return;
+      let $link = $elem.find('.name > a[href*="/Perfumes/"]').first();
+      if (!$link.length) $link = $elem.find('a[href*="/Perfumes/"]').first();
+      if (!$link.length) return;
 
-      const href = $nameLink.attr('href') || '';
+      const href = $link.attr('href') || '';
       if (!href) return;
 
-      const name = $nameLink.text().trim();
+      const name = $link.text().trim();
       const $brandLink = $elem.find('.brand a[href*="/Perfumes/"]').first();
       const brand = $brandLink.length ? $brandLink.text().trim() : '';
 
-      // Extract rank from .place element if available, otherwise use position
-      const $place = $elem.find('.place');
-      const rank = $place.length ? parseInt($place.text().trim(), 10) : baseRank + i + 1;
+      const rank = baseRank + i + 1;
 
       if (name) {
         items.push({
-          rank: isNaN(rank) ? baseRank + i + 1 : rank,
+          rank,
           name,
           brand,
           url: href,

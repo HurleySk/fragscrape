@@ -1,4 +1,4 @@
-# Fragscrape API v3.3.4
+# Fragscrape API v3.4.0
 
 A web scraping API for perfume and fragrance data from Parfumo, built with TypeScript, Express, and optional Decodo rotating residential proxies. Features saved queries with progress tracking, tagging, collection management, and Parfumo account integration.
 
@@ -164,6 +164,22 @@ curl http://localhost:3000/api/sync/diff
 | POST | `/api/perfume/by-url?cache=true` | Get perfume by URL |
 | GET | `/api/brand/{brand}?page=1` | Get perfumes by brand |
 
+### Rankings
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/rankings?category=mens&page=1&limit=20` | Get ranked fragrances by category |
+
+**Parameters:**
+
+| Param | Values | Default | Description |
+|-------|--------|---------|-------------|
+| `category` | `mens`, `womens`, `unisex` | _(required)_ | Gender category |
+| `page` | 1-100 | 1 | Page number |
+| `limit` | 1-100 | 20 | Max results per page |
+| `production` | `in-production`, `discontinued`, `all` | `all` | Filter by production status |
+| `edition` | `regular`, `limited`, `collectors`, `all` | `all` | Filter by edition type |
+
 ### Saved Queries
 
 | Method | Endpoint | Description |
@@ -291,6 +307,8 @@ Each perfume response includes:
 **Community**: reviewCount, statementCount, photoCount
 
 **Rankings**: rank, rankCategory
+
+**Status**: productionStatus (`in-production`, `discontinued`, or `unknown`)
 
 **Additional**: perfumer, similarFragrances, scrapedAt
 

@@ -231,6 +231,9 @@ class ParfumoScraper {
       // Extract perfumer
       const perfumer = this.htmlExtractor.extractPerfumer($);
 
+      // Extract production status
+      const productionStatus = this.htmlExtractor.extractProductionStatus($);
+
       const perfume: Perfume = {
         name,
         brand,
@@ -258,6 +261,7 @@ class ParfumoScraper {
         rank: ranking.rank,
         rankCategory: ranking.rankCategory,
         perfumer,
+        productionStatus,
         similarFragrances,
         scrapedAt: new Date(),
       };
