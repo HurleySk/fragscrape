@@ -1,26 +1,21 @@
 import { Router, Request, Response } from 'express';
 import database from '../../database/database';
 import { getParfumoDb } from '../../database/parfumoDb';
-import { asyncHandler, NotFoundError } from '../middleware/errorHandler';
+import { asyncHandler } from '../middleware/errorHandler';
 import { validate } from '../middleware/validate';
 import { sendSuccess } from '../../utils/apiResponse';
 import { reviewSchema, perfumeIdParamSchema } from '../validation/parfumoSchemas';
 
-import { AuthBrowserClient } from '../../auth/authBrowserClient';
+import { getAuthClient } from '../../auth/getAuthClient';
 import { submitReview, readReview, deleteReview } from '../../auth/parfumoActions';
 
 const router = Router();
-
-function getAuthClient(): AuthBrowserClient {
-  return new AuthBrowserClient();
-}
 
 router.get('/:perfumeId', validate({ params: perfumeIdParamSchema }), asyncHandler(async (req: Request, res: Response) => {
   const { perfumeId } = req.params as unknown as { perfumeId: number };
   const parfumoDb = getParfumoDb();
 
-  const perfume = database.getPerfumeById(perfumeId);
-  if (!perfume) throw new NotFoundError(`Perfume ${perfumeId}`);
+  const perfume = database.getPerfumeOrThrow(perfumeId);
 
   const authClient = getAuthClient();
   const { page } = await authClient.getAuthenticatedPage(perfume.url);
@@ -42,8 +37,7 @@ router.put('/', validate({ body: reviewSchema }), asyncHandler(async (req: Reque
   const { perfumeId, text } = req.body as { perfumeId: number; text: string };
   const parfumoDb = getParfumoDb();
 
-  const perfume = database.getPerfumeById(perfumeId);
-  if (!perfume) throw new NotFoundError(`Perfume ${perfumeId}`);
+  const perfume = database.getPerfumeOrThrow(perfumeId);
 
   const authClient = getAuthClient();
   const { page } = await authClient.getAuthenticatedPage(perfume.url);
@@ -71,8 +65,7 @@ router.delete('/:perfumeId', validate({ params: perfumeIdParamSchema }), asyncHa
   const { perfumeId } = req.params as unknown as { perfumeId: number };
   const parfumoDb = getParfumoDb();
 
-  const perfume = database.getPerfumeById(perfumeId);
-  if (!perfume) throw new NotFoundError(`Perfume ${perfumeId}`);
+  const perfume = database.getPerfumeOrThrow(perfumeId);
 
   const authClient = getAuthClient();
   const { page } = await authClient.getAuthenticatedPage(perfume.url);

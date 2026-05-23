@@ -52,10 +52,10 @@ export async function retryWithBackoff<T>(
 
       // Check if error is retryable
       const isRetryable =
-        error.code && config.retryableErrors.includes(error.code) ||
-        error.response?.status === 429 || // Rate limiting
-        error.response?.status === 503 || // Service unavailable
-        error.response?.status === 502;   // Bad gateway
+        (error.code && config.retryableErrors.includes(error.code)) ||
+        error.response?.status === 429 ||
+        error.response?.status === 503 ||
+        error.response?.status === 502;
 
       if (!isRetryable) {
         logger.debug(`Non-retryable error: ${error.message || error.code}`);

@@ -60,6 +60,15 @@ export class UrlProcessor {
     return [cleanedName, year];
   }
 
+  parsePerfumeUrl(url: string): { brand: string; name: string; year: number | undefined } | null {
+    const urlParts = url.split('/');
+    if (urlParts.length < 6) return null;
+
+    const brand = decodeURIComponent(urlParts[4]).replace(/_/g, ' ');
+    const [name, year] = this.processPerfumeName(decodeURIComponent(urlParts[5]));
+    return { brand, name, year };
+  }
+
   /**
    * Calculate relevance score for a perfume result based on how well it matches the search query
    * Returns a score from 0-100, higher is more relevant

@@ -1,18 +1,12 @@
 import { z } from 'zod';
+import { positiveIntParam } from './zodHelpers';
 
 /**
  * Search query validation schema
  */
 export const searchQuerySchema = z.object({
   q: z.string().min(1, 'Search query cannot be empty').max(200, 'Search query too long'),
-  limit: z.string().optional().transform((val) => {
-    if (!val) return 20;
-    const num = parseInt(val, 10);
-    if (isNaN(num) || num < 1 || num > 100) {
-      throw new Error('Limit must be between 1 and 100');
-    }
-    return num;
-  }),
+  limit: positiveIntParam('limit', { min: 1, max: 100, default: 20 }),
   cache: z.string().optional().transform((val) => val !== 'false'),
 });
 
@@ -77,14 +71,7 @@ export type BrandParams = z.infer<typeof brandParamsSchema>;
  * Brand query params validation
  */
 export const brandQuerySchema = z.object({
-  page: z.string().optional().transform((val) => {
-    if (!val) return 1;
-    const num = parseInt(val, 10);
-    if (isNaN(num) || num < 1 || num > 1000) {
-      throw new Error('Page must be between 1 and 1000');
-    }
-    return num;
-  }),
+  page: positiveIntParam('page', { min: 1, max: 1000, default: 1 }),
 });
 
 export type BrandQuery = z.infer<typeof brandQuerySchema>;
@@ -94,22 +81,8 @@ export type BrandQuery = z.infer<typeof brandQuerySchema>;
  */
 export const rankingsQuerySchema = z.object({
   category: z.enum(['mens', 'womens', 'unisex']),
-  page: z.string().optional().transform((val) => {
-    if (!val) return 1;
-    const num = parseInt(val, 10);
-    if (isNaN(num) || num < 1 || num > 100) {
-      throw new Error('Page must be between 1 and 100');
-    }
-    return num;
-  }),
-  limit: z.string().optional().transform((val) => {
-    if (!val) return 20;
-    const num = parseInt(val, 10);
-    if (isNaN(num) || num < 1 || num > 100) {
-      throw new Error('Limit must be between 1 and 100');
-    }
-    return num;
-  }),
+  page: positiveIntParam('page', { min: 1, max: 100, default: 1 }),
+  limit: positiveIntParam('limit', { min: 1, max: 100, default: 20 }),
   production: z.enum(['in-production', 'discontinued', 'all']).optional().default('all'),
   edition: z.enum(['regular', 'limited', 'collectors', 'all']).optional().default('all'),
 });

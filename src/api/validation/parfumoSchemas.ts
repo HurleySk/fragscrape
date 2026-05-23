@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { positiveIntParam } from './zodHelpers';
 
 export const parfumoCategorySchema = z.enum(['wishlist', 'i_have', 'tested', 'i_had']);
 
@@ -29,9 +30,5 @@ export const syncScopeSchema = z.object({
 });
 
 export const perfumeIdParamSchema = z.object({
-  perfumeId: z.string().transform((val) => {
-    const num = parseInt(val, 10);
-    if (isNaN(num) || num < 1) throw new Error('Invalid perfume ID');
-    return num;
-  }),
+  perfumeId: positiveIntParam('perfume ID'),
 });

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { positiveIntParam } from './zodHelpers';
 
 export const createQuerySchema = z.object({
   query: z.string().min(1, 'Query cannot be empty').max(200, 'Query too long'),
@@ -10,24 +11,12 @@ export const updateQuerySchema = z.object({
 });
 
 export const queryIdParamsSchema = z.object({
-  id: z.string().transform((val) => {
-    const num = parseInt(val, 10);
-    if (isNaN(num) || num < 1) throw new Error('Invalid query ID');
-    return num;
-  }),
+  id: positiveIntParam('query ID'),
 });
 
 export const queryItemParamsSchema = z.object({
-  id: z.string().transform((val) => {
-    const num = parseInt(val, 10);
-    if (isNaN(num) || num < 1) throw new Error('Invalid query ID');
-    return num;
-  }),
-  itemId: z.string().transform((val) => {
-    const num = parseInt(val, 10);
-    if (isNaN(num) || num < 1) throw new Error('Invalid item ID');
-    return num;
-  }),
+  id: positiveIntParam('query ID'),
+  itemId: positiveIntParam('item ID'),
 });
 
 export const updateQueryItemSchema = z.object({
@@ -36,11 +25,7 @@ export const updateQueryItemSchema = z.object({
 });
 
 export const perfumeIdParamsSchema = z.object({
-  id: z.string().transform((val) => {
-    const num = parseInt(val, 10);
-    if (isNaN(num) || num < 1) throw new Error('Invalid perfume ID');
-    return num;
-  }),
+  id: positiveIntParam('perfume ID'),
 });
 
 export const addTagSchema = z.object({
@@ -48,11 +33,7 @@ export const addTagSchema = z.object({
 });
 
 export const tagParamsSchema = z.object({
-  id: z.string().transform((val) => {
-    const num = parseInt(val, 10);
-    if (isNaN(num) || num < 1) throw new Error('Invalid perfume ID');
-    return num;
-  }),
+  id: positiveIntParam('perfume ID'),
   tag: z.string().min(1).max(50),
 });
 

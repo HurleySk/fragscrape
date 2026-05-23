@@ -2,27 +2,22 @@ import { Router, Request, Response } from 'express';
 import database from '../../database/database';
 import { getQueryDb } from '../../database/queries';
 import { getParfumoDb } from '../../database/parfumoDb';
-import { asyncHandler, NotFoundError } from '../middleware/errorHandler';
+import { asyncHandler } from '../middleware/errorHandler';
 import { validate } from '../middleware/validate';
 import { sendSuccess } from '../../utils/apiResponse';
 import { collectionActionSchema } from '../validation/parfumoSchemas';
-import { AuthBrowserClient } from '../../auth/authBrowserClient';
+import { getAuthClient } from '../../auth/getAuthClient';
 import { addToCollection, removeFromCollection } from '../../auth/parfumoActions';
 import { CATEGORY_TAG_MAP, ParfumoCategory } from '../../types/parfumo';
 
 const router = Router();
-
-function getAuthClient(): AuthBrowserClient {
-  return new AuthBrowserClient();
-}
 
 router.post('/', validate({ body: collectionActionSchema }), asyncHandler(async (req: Request, res: Response) => {
   const { perfumeId, category } = req.body as { perfumeId: number; category: ParfumoCategory };
   const parfumoDb = getParfumoDb();
   const queryDb = getQueryDb();
 
-  const perfume = database.getPerfumeById(perfumeId);
-  if (!perfume) throw new NotFoundError(`Perfume ${perfumeId}`);
+  const perfume = database.getPerfumeOrThrow(perfumeId);
 
   const authClient = getAuthClient();
   const { page } = await authClient.getAuthenticatedPage(perfume.url);
@@ -52,8 +47,7 @@ router.delete('/', validate({ body: collectionActionSchema }), asyncHandler(asyn
   const parfumoDb = getParfumoDb();
   const queryDb = getQueryDb();
 
-  const perfume = database.getPerfumeById(perfumeId);
-  if (!perfume) throw new NotFoundError(`Perfume ${perfumeId}`);
+  const perfume = database.getPerfumeOrThrow(perfumeId);
 
   const authClient = getAuthClient();
   const { page } = await authClient.getAuthenticatedPage(perfume.url);

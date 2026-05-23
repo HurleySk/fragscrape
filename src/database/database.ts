@@ -4,7 +4,7 @@ import fs from 'fs/promises';
 import config from '../config/config';
 import logger from '../utils/logger';
 import { Perfume } from '../types';
-import { DatabaseError } from '../api/middleware/errorHandler';
+import { DatabaseError, NotFoundError } from '../api/middleware/errorHandler';
 import { validateGender } from '../utils/validation';
 
 interface DatabaseRow {
@@ -373,6 +373,12 @@ class DatabaseService {
     if (!row) return null;
 
     return this.rowToPerfume(row);
+  }
+
+  getPerfumeOrThrow(id: number): Perfume {
+    const perfume = this.getPerfumeById(id);
+    if (!perfume) throw new NotFoundError(`Perfume ${id}`);
+    return perfume;
   }
 
   getDb(): Database.Database {

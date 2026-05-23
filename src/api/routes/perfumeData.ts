@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import database from '../../database/database';
 import { getQueryDb } from '../../database/queries';
 import logger from '../../utils/logger';
-import { asyncHandler, NotFoundError } from '../middleware/errorHandler';
+import { asyncHandler } from '../middleware/errorHandler';
 import { validate } from '../middleware/validate';
 import { sendSuccess } from '../../utils/apiResponse';
 import {
@@ -22,8 +22,7 @@ router.post('/:id/tags', validate({ params: perfumeIdParamsSchema, body: addTagS
   const { tag } = req.body as { tag: string };
   const queryDb = getQueryDb();
 
-  const perfume = database.getPerfumeById(id);
-  if (!perfume) throw new NotFoundError(`Perfume ${id} not found`);
+  database.getPerfumeOrThrow(id);
 
   try {
     queryDb.addTag(id, tag);
@@ -59,8 +58,7 @@ router.put('/:id/user-data', validate({ params: perfumeIdParamsSchema, body: use
   const data = req.body as { notes?: string; interest?: number };
   const queryDb = getQueryDb();
 
-  const perfume = database.getPerfumeById(id);
-  if (!perfume) throw new NotFoundError(`Perfume ${id} not found`);
+  database.getPerfumeOrThrow(id);
 
   queryDb.upsertUserData(id, data);
   return sendSuccess(res, queryDb.getUserData(id));

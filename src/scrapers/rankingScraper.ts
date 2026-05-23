@@ -3,6 +3,7 @@ import browserClient from '../proxy/browserClient';
 import { getRandomDelay, SCRAPING_DELAYS } from '../constants/scraping';
 import logger from '../utils/logger';
 import config from '../config/config';
+import { saveDebugHtml } from '../utils/debugHtml';
 
 export interface RankedFragrance {
   rank: number;
@@ -69,13 +70,7 @@ class RankingScraper {
     const html = await browserClient.getPageContent(url);
     const $ = cheerio.load(html);
 
-    if (process.env.DEBUG_HTML === 'true') {
-      const fs = await import('fs/promises');
-      const path = await import('path');
-      const debugPath = path.join('C:', 'Users', 'shurley', 'source', 'repos', 'HurleySk', 'fragscrape', `debug_ranking_${category}_p${page}.html`);
-      await fs.writeFile(debugPath, html);
-      logger.info(`DEBUG: Saved HTML (${html.length} bytes) to ${debugPath}`);
-    }
+    await saveDebugHtml(`ranking_${category}_p${page}`, html);
 
     const items: RankedFragrance[] = [];
     const baseRank = (page - 1) * ITEMS_PER_PAGE;

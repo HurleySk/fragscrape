@@ -6,6 +6,7 @@ import { Perfume, SearchResult } from '../types';
 import { HtmlExtractor } from './HtmlExtractor';
 import { UrlProcessor } from './UrlProcessor';
 import { SCRAPING_DELAYS, getRandomDelay, RELEVANCE_SCORES, LIMITS } from '../constants/scraping';
+import { saveDebugHtml } from '../utils/debugHtml';
 
 class ParfumoScraper {
   private htmlExtractor = new HtmlExtractor();
@@ -28,13 +29,7 @@ class ParfumoScraper {
 
       const html = await browserClient.getPageContent(searchUrl);
 
-      // Debug: Save HTML to file for inspection
-      if (process.env.DEBUG_HTML === 'true') {
-        const fs = await import('fs/promises');
-        const debugPath = `./debug_search_${query.replace(/\s+/g, '_')}.html`;
-        await fs.writeFile(debugPath, html);
-        logger.debug(`Saved HTML to: ${debugPath}`);
-      }
+      await saveDebugHtml(`search_${query.replace(/\s+/g, '_')}`, html);
 
       const $ = cheerio.load(html);
 
@@ -78,10 +73,9 @@ class ParfumoScraper {
             if (seenUrls.has(fullUrl)) return;
             seenUrls.add(fullUrl);
 
-            // Parse brand and name from URL
-            const urlParts = fullUrl.split('/');
-            const brand = decodeURIComponent(urlParts[4]).replace(/_/g, ' ');
-            const [name, year] = this.urlProcessor.processPerfumeName(decodeURIComponent(urlParts[5]));
+            const parsed = this.urlProcessor.parsePerfumeUrl(fullUrl);
+            if (!parsed) return;
+            const { brand, name, year } = parsed;
 
             // Calculate relevance score
             const relevanceScore = this.urlProcessor.calculateRelevance(query, brand, name);
@@ -160,29 +154,16 @@ class ParfumoScraper {
       // We wait for both the rating value and durability selector to ensure full page load
       const html = await browserClient.getPageContent(fullUrl, '[itemprop="aggregateRating"]', ['.sim_item', '.s-circle-container', '.notes_list']);
 
-      // Debug: Save HTML to file for inspection if DEBUG_HTML is enabled
-      if (process.env.DEBUG_HTML === 'true') {
-        const fs = await import('fs/promises');
-        const brandSlug = fullUrl.split('/')[4];
-        const nameSlug = fullUrl.split('/')[5];
-        const timestamp = Date.now();
-        const debugPath = `./debug_live_${brandSlug}_${nameSlug}_${timestamp}.html`;
-        await fs.writeFile(debugPath, html);
-        logger.debug(`💾 Saved live HTML to: ${debugPath}`);
-      }
+      const brandSlug = fullUrl.split('/')[4];
+      const nameSlug = fullUrl.split('/')[5];
+      await saveDebugHtml(`live_${brandSlug}_${nameSlug}`, html);
 
       const $ = cheerio.load(html);
 
-      // Extract brand and name from URL (most reliable method)
-      const urlParts = fullUrl.split('/');
-      let brand = '';
-      let name = '';
-      let year: number | undefined;
-
-      if (urlParts.length >= 6) {
-        brand = decodeURIComponent(urlParts[4]).replace(/_/g, ' ');
-        [name, year] = this.urlProcessor.processPerfumeName(decodeURIComponent(urlParts[5]));
-      }
+      const parsed = this.urlProcessor.parsePerfumeUrl(fullUrl);
+      const brand = parsed?.brand ?? '';
+      const name = parsed?.name ?? '';
+      const year = parsed?.year;
 
       // Extract other information
       const concentration = this.htmlExtractor.extractText($, '.concentration, .perfume-concentration, .type');
@@ -205,15 +186,7 @@ class ParfumoScraper {
         logger.warn(`⚠️  Rating extraction failed`);
         logger.warn(`Missing ratings: ${!ratings.longevity ? 'longevity ' : ''}${!ratings.sillage ? 'sillage ' : ''}${!ratings.bottle ? 'bottle ' : ''}${!ratings.priceValue ? 'priceValue' : ''}`);
 
-        if (process.env.DEBUG_HTML === 'true') {
-          const fs = await import('fs/promises');
-          const brandSlug = fullUrl.split('/')[4];
-          const nameSlug = fullUrl.split('/')[5];
-          const timestamp = Date.now();
-          const debugPath = `./debug_failed_${brandSlug}_${nameSlug}_${timestamp}.html`;
-          await fs.writeFile(debugPath, html);
-          logger.debug(`HTML saved to: ${debugPath}`);
-        }
+        await saveDebugHtml(`failed_${brandSlug}_${nameSlug}`, html);
       }
 
       // Extract image
@@ -321,12 +294,9 @@ class ParfumoScraper {
         if (seenUrls.has(fullUrl)) return;
         seenUrls.add(fullUrl);
 
-        // Parse from URL
-        const urlParts = fullUrl.split('/');
-        if (urlParts.length < 6) return;
-
-        const extractedBrand = decodeURIComponent(urlParts[4]).replace(/_/g, ' ');
-        const [name, year] = this.urlProcessor.processPerfumeName(decodeURIComponent(urlParts[5]));
+        const parsed = this.urlProcessor.parsePerfumeUrl(fullUrl);
+        if (!parsed) return;
+        const { brand: extractedBrand, name, year } = parsed;
 
         // Try to find rating
         const $container = $nameElement.closest('div');

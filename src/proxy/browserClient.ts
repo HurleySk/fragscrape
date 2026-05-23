@@ -10,6 +10,7 @@ import { IBrowserClient } from './types';
 import { retryWithBackoff } from '../utils/retry';
 import { BaseProxyClient } from './BaseProxyClient';
 import { TIMEOUT_CONFIG, RETRY_CONFIG } from '../constants/scraping';
+import { DEFAULT_USER_AGENT, DEFAULT_HEADERS } from './headers';
 
 // Add stealth plugin to avoid detection
 puppeteerExtra.use(StealthPlugin());
@@ -89,16 +90,8 @@ class BrowserClient extends BaseProxyClient implements IBrowserClient {
         logger.debug('Page authenticated with proxy credentials');
       }
 
-      // Set user agent
-      await this.activePage.setUserAgent(
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      );
-
-      // Set additional headers
-      await this.activePage.setExtraHTTPHeaders({
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-      });
+      await this.activePage.setUserAgent(DEFAULT_USER_AGENT);
+      await this.activePage.setExtraHTTPHeaders(DEFAULT_HEADERS);
 
       logger.debug('New page created');
     }
@@ -163,6 +156,29 @@ class BrowserClient extends BaseProxyClient implements IBrowserClient {
     } catch (error) {
       logger.error('Error validating page content:', error);
       return { isValid: true }; // On error, assume valid to avoid false positives
+    }
+  }
+
+  private async validatePerfumePage(page: Page, html: string, url: string): Promise<void> {
+    if (!url.includes('/Perfumes/')) return;
+
+    const validation = this.validatePageContent(html, url);
+    if (!validation.isValid) {
+      logger.error(`❌ ${validation.message}`);
+      logger.error(`Expected URL: ${url}`);
+      logger.error(`Actual URL: ${validation.actualUrl}`);
+      logger.info('🔄 Resetting entire browser to clear session pollution...');
+      await this.reset();
+      const error: any = new ScraperError('Page content mismatch - browser session polluted', url);
+      error.code = 'PAGE_MISMATCH';
+      throw error;
+    }
+
+    const title = await page.title();
+    if (title.includes('Oops') || html.includes('Oops, something went wrong')) {
+      const error: any = new ScraperError('Parfumo page not found (404 error page)', url);
+      error.code = 'PAGE_NOT_FOUND';
+      throw error;
     }
   }
 
@@ -235,58 +251,12 @@ class BrowserClient extends BaseProxyClient implements IBrowserClient {
 
           logger.info('Successfully bypassed Cloudflare challenge');
 
-          // Validate page content matches requested URL (for Parfumo perfume URLs)
-          if (url.includes('/Perfumes/')) {
-            const validation = this.validatePageContent(resolvedHtml, url);
-            if (!validation.isValid) {
-              logger.error(`❌ ${validation.message}`);
-              logger.error(`Expected URL: ${url}`);
-              logger.error(`Actual URL: ${validation.actualUrl}`);
-              logger.info('🔄 Resetting entire browser to clear session pollution...');
-              await this.reset();
-              const error: any = new ScraperError('Page content mismatch - browser session polluted', url);
-              error.code = 'PAGE_MISMATCH';
-              throw error;
-            }
-          }
-
-          // Detect Parfumo error pages behind Cloudflare
-          if (url.includes('/Perfumes/')) {
-            const resolvedTitle = await page.title();
-            if (resolvedTitle.includes('Oops') || resolvedHtml.includes('Oops, something went wrong')) {
-              const error: any = new ScraperError('Parfumo page not found (404 error page)', url);
-              error.code = 'PAGE_NOT_FOUND';
-              throw error;
-            }
-          }
+          await this.validatePerfumePage(page, resolvedHtml, url);
 
           return resolvedHtml;
         }
 
-        // Validate page content matches requested URL (for Parfumo perfume URLs)
-        if (url.includes('/Perfumes/')) {
-          const validation = this.validatePageContent(html, url);
-          if (!validation.isValid) {
-            logger.error(`❌ ${validation.message}`);
-            logger.error(`Expected URL: ${url}`);
-            logger.error(`Actual URL: ${validation.actualUrl}`);
-            logger.info('🔄 Resetting entire browser to clear session pollution...');
-            await this.reset();
-            const error: any = new ScraperError('Page content mismatch - browser session polluted', url);
-            error.code = 'PAGE_MISMATCH';
-            throw error;
-          }
-        }
-
-        // Detect Parfumo error pages (404s that return 200 status)
-        if (url.includes('/Perfumes/')) {
-          const title = await page.title();
-          if (title.includes('Oops') || html.includes('Oops, something went wrong')) {
-            const error: any = new ScraperError('Parfumo page not found (404 error page)', url);
-            error.code = 'PAGE_NOT_FOUND';
-            throw error;
-          }
-        }
+        await this.validatePerfumePage(page, html, url);
 
         logger.debug(`Successfully retrieved content from: ${url}`);
         return html;
