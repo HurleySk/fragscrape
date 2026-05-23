@@ -226,7 +226,7 @@ class ParfumoScraper {
       try {
         const urlMap = await browserClient.extractSimilarFragUrls();
         if (urlMap.size > 0) {
-          const simItems = $( '.sim_item').toArray();
+          const simItems = $('.sim_item').toArray();
           for (let i = 0; i < Math.min(simItems.length, similarFragrances.length); i++) {
             const $item = $(simItems[i]);
             const dataId = $item.attr('data-s_id') || $item.attr('data-p_id') || '';

@@ -44,6 +44,11 @@ export interface IBrowserClient extends BaseProxyClient {
   getPageContent(url: string, waitForSelector?: string, additionalWaitSelectors?: string[]): Promise<string>;
 
   /**
+   * Extract URLs for similar fragrances from the current page
+   */
+  extractSimilarFragUrls(): Promise<Map<string, string>>;
+
+  /**
    * Close all browser resources
    */
   close(): Promise<void>;

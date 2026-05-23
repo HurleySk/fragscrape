@@ -250,6 +250,16 @@ class BrowserClient extends BaseProxyClient implements IBrowserClient {
             }
           }
 
+          // Detect Parfumo error pages behind Cloudflare
+          if (url.includes('/Perfumes/')) {
+            const resolvedTitle = await page.title();
+            if (resolvedTitle.includes('Oops') || resolvedHtml.includes('Oops, something went wrong')) {
+              const error: any = new ScraperError('Parfumo page not found (404 error page)', url);
+              error.code = 'PAGE_NOT_FOUND';
+              throw error;
+            }
+          }
+
           return resolvedHtml;
         }
 
