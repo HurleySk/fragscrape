@@ -178,6 +178,7 @@ export class HtmlExtractor {
     // Map labels to data-type attributes
     // The label parameter may be a regex pattern, so we need to check against possible values
     const labelToDataType: { [key: string]: string } = {
+      'scent': 'scent',
       'longevity': 'durability',
       'sillage': 'sillage',
       'bottle': 'bottle',
@@ -412,11 +413,12 @@ export class HtmlExtractor {
       logger.debug(`Selected main product rating: ${selectedRating} (${selectedRatingCount} votes - highest count)`);
     }
 
-    // Fallback: Try regex extraction for scent rating if structured data extraction failed
+    // Fallback: Try DOM/regex extraction for scent rating if structured data extraction failed
     if (!ratings.scent) {
       const scent = this.extractRatingMetric($, 'Scent');
       if (scent) {
         ratings.scent = scent.value;
+        ratings.totalRatings = scent.count;
       }
     }
 
@@ -583,8 +585,8 @@ export class HtmlExtractor {
   /**
    * Extract similar fragrances
    */
-  extractSimilarFragrances($: cheerio.CheerioAPI, limit: number = 10): { name: string; brand?: string; similarity: number }[] {
-    const similar: { name: string; brand?: string; similarity: number }[] = [];
+  extractSimilarFragrances($: cheerio.CheerioAPI, limit: number = 10): { name: string; brand?: string; url?: string; similarity: number }[] {
+    const similar: { name: string; brand?: string; url?: string; similarity: number }[] = [];
 
     $('.sim_item').each((_, elem) => {
       if (similar.length >= limit) return false;

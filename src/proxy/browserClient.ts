@@ -268,6 +268,16 @@ class BrowserClient extends BaseProxyClient implements IBrowserClient {
           }
         }
 
+        // Detect Parfumo error pages (404s that return 200 status)
+        if (url.includes('/Perfumes/')) {
+          const title = await page.title();
+          if (title.includes('Oops') || html.includes('Oops, something went wrong')) {
+            const error: any = new ScraperError('Parfumo page not found (404 error page)', url);
+            error.code = 'PAGE_NOT_FOUND';
+            throw error;
+          }
+        }
+
         logger.debug(`Successfully retrieved content from: ${url}`);
         return html;
       } catch (error: any) {
@@ -275,6 +285,81 @@ class BrowserClient extends BaseProxyClient implements IBrowserClient {
         throw error;
       }
     }, { maxRetries: RETRY_CONFIG.BROWSER_MAX_RETRIES });
+  }
+
+  /**
+   * Extract URLs for similar fragrances by clicking each .sim_item on the current page.
+   * Must be called while the perfume detail page is still loaded.
+   */
+  async extractSimilarFragUrls(): Promise<Map<string, string>> {
+    const urlMap = new Map<string, string>();
+
+    if (!this.activePage || this.activePage.isClosed()) {
+      logger.warn('No active page for similar frag URL extraction');
+      return urlMap;
+    }
+
+    const page = this.activePage;
+
+    try {
+      const entries: Array<{ id: string; url: string }> = await page.evaluate(async () => {
+        const results: Array<{ id: string; url: string }> = [];
+        const items = document.querySelectorAll('.sim_item');
+        if (items.length === 0) return results;
+
+        for (const item of items) {
+          const dataId = item.getAttribute('data-s_id') || item.getAttribute('data-p_id') || '';
+          if (!dataId) continue;
+
+          try {
+            (item as HTMLElement).click();
+            // Wait for the sneakpeek popup to appear
+            await new Promise<void>((resolve, reject) => {
+              let attempts = 0;
+              const check = setInterval(() => {
+                const link = document.querySelector('.sim_sneak a[href*="/Perfumes/"]');
+                if (link) {
+                  clearInterval(check);
+                  resolve();
+                } else if (++attempts > 15) {
+                  clearInterval(check);
+                  reject(new Error('timeout'));
+                }
+              }, 200);
+            });
+
+            const link = document.querySelector('.sim_sneak a[href*="/Perfumes/"]') as HTMLAnchorElement;
+            if (link) {
+              results.push({ id: dataId, url: link.href });
+            }
+
+            // Close popup
+            const closeBtn = document.querySelector('.sim_sneak .close, .sim_sneak [class*="close"]') as HTMLElement;
+            if (closeBtn) {
+              closeBtn.click();
+            } else {
+              (document.body as HTMLElement).click();
+            }
+            await new Promise(r => setTimeout(r, 300));
+          } catch {
+            // Skip this item
+          }
+        }
+        return results;
+      });
+
+      for (const entry of entries) {
+        urlMap.set(entry.id, entry.url);
+        logger.debug(`Similar frag URL: id=${entry.id} -> ${entry.url}`);
+      }
+      if (entries.length > 0) {
+        logger.info(`Extracted ${entries.length} similar frag URLs via click`);
+      }
+    } catch (err: any) {
+      logger.warn(`Similar frag URL extraction failed: ${err.message}`);
+    }
+
+    return urlMap;
   }
 
   /**

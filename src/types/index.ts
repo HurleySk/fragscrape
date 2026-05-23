@@ -38,7 +38,7 @@ export interface Perfume {
   rankCategory?: string; // Category ranked in (e.g., "Men's Perfume")
   perfumer?: string; // Perfumer name(s)
   productionStatus?: 'in-production' | 'discontinued' | 'unknown';
-  similarFragrances?: { name: string; brand?: string; similarity: number }[];
+  similarFragrances?: { name: string; brand?: string; url?: string; similarity: number }[];
   scrapedAt: Date;
 }
 

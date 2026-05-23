@@ -219,8 +219,26 @@ class ParfumoScraper {
       // Extract image
       const imageUrl = this.htmlExtractor.extractMainImage($, this.baseUrl);
 
-      // Extract similar fragrances
+      // Extract similar fragrances (names/brands from cheerio, URLs from Puppeteer clicks)
       const similarFragrances = this.htmlExtractor.extractSimilarFragrances($, LIMITS.MAX_SIMILAR_FRAGRANCES);
+
+      // Extract real Parfumo URLs by clicking each similar item's sneakpeek popup
+      try {
+        const urlMap = await browserClient.extractSimilarFragUrls();
+        if (urlMap.size > 0) {
+          const simItems = $( '.sim_item').toArray();
+          for (let i = 0; i < Math.min(simItems.length, similarFragrances.length); i++) {
+            const $item = $(simItems[i]);
+            const dataId = $item.attr('data-s_id') || $item.attr('data-p_id') || '';
+            if (dataId && urlMap.has(dataId)) {
+              similarFragrances[i].url = urlMap.get(dataId);
+            }
+          }
+          logger.info(`Extracted ${urlMap.size} similar frag URLs`);
+        }
+      } catch (err: any) {
+        logger.warn(`Could not extract similar frag URLs: ${err.message}`);
+      }
 
       // Extract community stats
       const communityStats = this.htmlExtractor.extractCommunityStats($);
