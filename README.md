@@ -310,6 +310,8 @@ Each perfume response includes:
 
 **Status**: productionStatus (`in-production`, `discontinued`, or `unknown`)
 
+**Cache Metadata**: `_cached` (boolean, present only when `cache=true` and data was served from cache - allows callers to skip rate-limiting delays)
+
 **Additional**: perfumer, similarFragrances, scrapedAt
 
 ## Configuration

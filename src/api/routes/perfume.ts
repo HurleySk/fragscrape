@@ -66,6 +66,7 @@ router.get('/perfume/:brand/:name', validate({ params: perfumeParamsSchema, quer
 
   // Check cache first if enabled
   let perfume = useCache ? database.getPerfume(brandNormalized, nameNormalized, year) : null;
+  const wasCached = !!perfume;
 
   if (!perfume) {
     // Build URL with proper Parfumo format (replace spaces with underscores)
@@ -82,7 +83,7 @@ router.get('/perfume/:brand/:name', validate({ params: perfumeParamsSchema, quer
     logger.info(`Returning cached perfume: ${brandNormalized} - ${nameNormalized}`);
   }
 
-  return sendSuccess(res, perfume);
+  return sendSuccess(res, wasCached ? { ...perfume, _cached: true } : perfume);
 }));
 
 /**
@@ -96,6 +97,7 @@ router.post('/perfume/by-url', validate({ body: perfumeByUrlSchema, query: perfu
 
   // Check cache first if enabled
   let perfume = useCache ? database.getPerfumeByUrl(url) : null;
+  const wasCached = !!perfume;
 
   if (!perfume) {
     // Scrape the URL
@@ -108,7 +110,7 @@ router.post('/perfume/by-url', validate({ body: perfumeByUrlSchema, query: perfu
     logger.info(`Returning cached perfume from URL: ${url}`);
   }
 
-  return sendSuccess(res, perfume);
+  return sendSuccess(res, wasCached ? { ...perfume, _cached: true } : perfume);
 }));
 
 /**
