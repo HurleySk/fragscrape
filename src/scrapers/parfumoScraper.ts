@@ -169,6 +169,7 @@ class ParfumoScraper {
       const htmlBrand = this.htmlExtractor.extractBrand($);
       const name = htmlName || urlName;
       const brand = htmlBrand || urlBrand;
+      logger.debug(`Name source: ${htmlName ? 'HTML' : 'URL'}, Brand source: ${htmlBrand ? 'HTML' : 'URL'}`);
 
       // Extract other information
       const concentration = this.htmlExtractor.extractText($, '.concentration, .perfume-concentration, .type');

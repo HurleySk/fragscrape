@@ -17,22 +17,26 @@ export class HtmlExtractor {
 
   extractName($: cheerio.CheerioAPI): string | null {
     const h1 = $('h1').first();
-    if (!h1.length) return null;
+    if (!h1.length) {
+      logger.debug('extractName: no h1 element found');
+      return null;
+    }
 
     const firstTextNode = h1.contents().filter(function () {
       return this.type === 'text';
     }).first().text().trim();
 
-    if (firstTextNode && firstTextNode.length > 0) return firstTextNode;
+    if (firstTextNode) return firstTextNode;
 
     const itemprop = $('[itemprop="name"]').first();
     if (itemprop.length) {
       const itext = itemprop.contents().filter(function () {
         return this.type === 'text';
       }).first().text().trim();
-      if (itext && itext.length > 0) return itext;
+      if (itext) return itext;
     }
 
+    logger.debug('extractName: no name found in h1 or itemprop');
     return null;
   }
 
@@ -41,10 +45,13 @@ export class HtmlExtractor {
     if (!h1.length) return null;
 
     const span = h1.find('span').first();
-    if (!span.length) return null;
+    if (!span.length) {
+      logger.debug('extractBrand: no span found in h1');
+      return null;
+    }
 
     const text = span.text().trim();
-    return text.replace(/\s*\d{4}\s*$/, '').trim() || null;
+    return text.replace(/\s*\(?\d{4}\)?\s*$/, '').trim() || null;
   }
 
   /**
