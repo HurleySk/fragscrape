@@ -161,9 +161,14 @@ class ParfumoScraper {
       const $ = cheerio.load(html);
 
       const parsed = this.urlProcessor.parsePerfumeUrl(fullUrl);
-      const brand = parsed?.brand ?? '';
-      const name = parsed?.name ?? '';
+      const urlBrand = parsed?.brand ?? '';
+      const urlName = parsed?.name ?? '';
       const year = parsed?.year;
+
+      const htmlName = this.htmlExtractor.extractName($);
+      const htmlBrand = this.htmlExtractor.extractBrand($);
+      const name = htmlName || urlName;
+      const brand = htmlBrand || urlBrand;
 
       // Extract other information
       const concentration = this.htmlExtractor.extractText($, '.concentration, .perfume-concentration, .type');

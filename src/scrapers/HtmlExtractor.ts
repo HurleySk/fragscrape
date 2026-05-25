@@ -15,6 +15,38 @@ export class HtmlExtractor {
     return elem.first().text().trim();
   }
 
+  extractName($: cheerio.CheerioAPI): string | null {
+    const h1 = $('h1').first();
+    if (!h1.length) return null;
+
+    const firstTextNode = h1.contents().filter(function () {
+      return this.type === 'text';
+    }).first().text().trim();
+
+    if (firstTextNode && firstTextNode.length > 0) return firstTextNode;
+
+    const itemprop = $('[itemprop="name"]').first();
+    if (itemprop.length) {
+      const itext = itemprop.contents().filter(function () {
+        return this.type === 'text';
+      }).first().text().trim();
+      if (itext && itext.length > 0) return itext;
+    }
+
+    return null;
+  }
+
+  extractBrand($: cheerio.CheerioAPI): string | null {
+    const h1 = $('h1').first();
+    if (!h1.length) return null;
+
+    const span = h1.find('span').first();
+    if (!span.length) return null;
+
+    const text = span.text().trim();
+    return text.replace(/\s*\d{4}\s*$/, '').trim() || null;
+  }
+
   /**
    * Extract gender from page content
    */
