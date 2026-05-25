@@ -228,7 +228,7 @@ curl http://localhost:3000/api/sync/diff
 |--------|----------|-------------|
 | POST | `/api/auth/login` | Launch browser for Parfumo login |
 | GET | `/api/auth/status` | Check session validity |
-| POST | `/api/auth/logout` | Session info |
+| POST | `/api/auth/logout` | Logout instructions |
 
 ### Parfumo Collection
 
@@ -324,7 +324,7 @@ All configuration is done through environment variables:
 | `PORT` | API server port | 3000 |
 | `NODE_ENV` | Environment mode | development |
 | `DATABASE_PATH` | SQLite database path | ./data/fragscrape.db |
-| `CACHE_PERFUME_DURATION_SECONDS` | Freshness window for perfume data | 86400 (24h) |
+| `CACHE_PERFUME_DURATION_SECONDS` | Freshness window for perfume data | 21600 (6h) |
 | `CACHE_SEARCH_DURATION_SECONDS` | Freshness window for search results | 3600 (1h) |
 | `LOG_LEVEL` | Logging level (error/warn/info/debug) | info |
 | `LOG_FILE_MAX_SIZE_MB` | Max size per log file | 5 |
@@ -337,6 +337,7 @@ All configuration is done through environment variables:
 | `RATE_LIMIT_MAX_REQUESTS` | Max requests per window | 100 |
 | `PARFUMO_LOGIN_TIMEOUT_MS` | Login flow timeout | 300000 (5 min) |
 | `PARFUMO_ACTION_TIMEOUT_MS` | Per-action browser timeout | 30000 (30s) |
+| `PARFUMO_SESSION_VERIFY_INTERVAL_MS` | Session revalidation interval | 1800000 (30 min) |
 
 ## Architecture Notes
 
