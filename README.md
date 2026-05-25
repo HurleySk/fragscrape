@@ -1,4 +1,4 @@
-# Fragscrape API v3.5.0
+# Fragscrape API
 
 A web scraping API for perfume and fragrance data from Parfumo, built with TypeScript, Express, and optional Decodo rotating residential proxies. Features saved queries with progress tracking, tagging, collection management, and Parfumo account integration.
 
@@ -324,11 +324,14 @@ All configuration is done through environment variables:
 | `PORT` | API server port | 3000 |
 | `NODE_ENV` | Environment mode | development |
 | `DATABASE_PATH` | SQLite database path | ./data/fragscrape.db |
-| `CACHE_PERFUME_DURATION_SECONDS` | Freshness window for perfume data | 21600 (6h) |
+| `CACHE_PERFUME_DURATION_SECONDS` | Freshness window for perfume data | 86400 (24h) |
 | `CACHE_SEARCH_DURATION_SECONDS` | Freshness window for search results | 3600 (1h) |
 | `LOG_LEVEL` | Logging level (error/warn/info/debug) | info |
 | `LOG_FILE_MAX_SIZE_MB` | Max size per log file | 5 |
 | `LOG_FILE_MAX_FILES` | Number of rotated log files to keep | 5 |
+| `LOG_RETENTION_DAYS` | Keep database request logs for N days | 30 |
+| `CLEANUP_INTERVAL_HOURS` | Run automatic cleanup every N hours | 24 |
+| `SCRAPER_BASE_URL` | Base URL for Parfumo | https://www.parfumo.com |
 | `BROWSER_EXECUTABLE_PATH` | Custom Chrome/Chromium path | (bundled) |
 | `RATE_LIMIT_WINDOW_MS` | Rate limit window | 900000 (15m) |
 | `RATE_LIMIT_MAX_REQUESTS` | Max requests per window | 100 |
