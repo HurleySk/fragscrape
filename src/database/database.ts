@@ -497,9 +497,10 @@ class DatabaseService {
 
     // SQL equivalents of ERROR_TITLE_PATTERNS in src/scrapers/errorDetection.ts
     const patterns = [
-      "%page isn't working%",
-      "%page isnt working%",
       "%page isn%t working%",
+      "%page not found%",
+      "%error 4__",
+      "%error 5__",
       "%HTTP ERROR%",
       "%access denied%",
       "%service unavailable%",

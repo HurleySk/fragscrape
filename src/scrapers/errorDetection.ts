@@ -32,7 +32,7 @@ export function detectErrorPage($: cheerio.CheerioAPI, url: string): void {
     }
   }
 
-  const bodyText = $('body').text();
+  const bodyText = $('body').text().substring(0, 2000);
   for (const pattern of ERROR_BODY_PATTERNS) {
     if (pattern.test(bodyText)) {
       const match = bodyText.match(pattern);
