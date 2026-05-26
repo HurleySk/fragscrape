@@ -495,6 +495,7 @@ class DatabaseService {
   purgeErrorPages(): { purged: number } {
     if (!this.db) throw new DatabaseError('Database not initialized');
 
+    // SQL equivalents of ERROR_TITLE_PATTERNS in src/scrapers/errorDetection.ts
     const patterns = [
       "%page isn't working%",
       "%page isnt working%",

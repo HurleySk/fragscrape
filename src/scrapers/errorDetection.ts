@@ -18,19 +18,17 @@ const ERROR_BODY_PATTERNS = [
 ];
 
 export function detectErrorPage($: cheerio.CheerioAPI, url: string): void {
-  const title = $('title').first().text().trim();
-  for (const pattern of ERROR_TITLE_PATTERNS) {
-    if (pattern.test(title)) {
-      logger.warn(`Error page detected via title: "${title}" at ${url}`);
-      throw new ErrorPageError(title, url);
-    }
-  }
+  const textCandidates = [
+    { source: 'title', text: $('title').first().text().trim() },
+    { source: 'h1', text: $('h1').first().text().trim() },
+  ];
 
-  const h1Text = $('h1').first().text().trim();
-  for (const pattern of ERROR_TITLE_PATTERNS) {
-    if (pattern.test(h1Text)) {
-      logger.warn(`Error page detected via h1: "${h1Text}" at ${url}`);
-      throw new ErrorPageError(h1Text, url);
+  for (const { source, text } of textCandidates) {
+    for (const pattern of ERROR_TITLE_PATTERNS) {
+      if (pattern.test(text)) {
+        logger.warn(`Error page detected via ${source}: "${text}" at ${url}`);
+        throw new ErrorPageError(text, url);
+      }
     }
   }
 
