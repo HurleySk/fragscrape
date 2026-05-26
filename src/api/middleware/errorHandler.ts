@@ -53,6 +53,14 @@ export class ScraperError extends AppError {
   }
 }
 
+export class ErrorPageError extends AppError {
+  constructor(message: string, public url?: string) {
+    super(502, `Error page detected: ${message}`);
+    this.name = 'ErrorPageError';
+    Object.setPrototypeOf(this, ErrorPageError.prototype);
+  }
+}
+
 export class RateLimitError extends AppError {
   constructor(message: string = 'Rate limit exceeded') {
     super(429, message);
