@@ -3,7 +3,7 @@ import logger from '../utils/logger';
 import { ErrorPageError } from '../api/middleware/errorHandler';
 
 const ERROR_TITLE_PATTERNS = [
-  /this page isn['']?t working/i,
+  /this page isn['‘’'`]?t working/i,
   /page not found/i,
   /error \d{3}/i,
   /http error/i,
