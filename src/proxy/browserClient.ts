@@ -5,7 +5,7 @@ import * as cheerio from 'cheerio';
 import { getProxyConfig, isProxyConfigured } from './proxyConfig';
 import logger from '../utils/logger';
 import config from '../config/config';
-import { ScraperError } from '../api/middleware/errorHandler';
+import { ScraperError, NotFoundError } from '../api/middleware/errorHandler';
 import { IBrowserClient } from './types';
 import { retryWithBackoff } from '../utils/retry';
 import { BaseProxyClient } from './BaseProxyClient';
@@ -176,9 +176,7 @@ class BrowserClient extends BaseProxyClient implements IBrowserClient {
 
     const title = await page.title();
     if (title.includes('Oops') || html.includes('Oops, something went wrong')) {
-      const error: any = new ScraperError('Parfumo page not found (404 error page)', url);
-      error.code = 'PAGE_NOT_FOUND';
-      throw error;
+      throw new NotFoundError(`Perfume at ${url}`);
     }
   }
 
@@ -261,7 +259,7 @@ class BrowserClient extends BaseProxyClient implements IBrowserClient {
         logger.debug(`Successfully retrieved content from: ${url}`);
         return html;
       } catch (error: any) {
-        logger.error(`Browser navigation error for ${url}:`, error.message);
+        logger.error(`Browser navigation error for ${url}: ${error.message}`);
         throw error;
       }
     }, { maxRetries: RETRY_CONFIG.BROWSER_MAX_RETRIES });

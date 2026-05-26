@@ -79,7 +79,7 @@ class HttpClient extends BaseProxyClient implements IHttpClient {
           throw new RateLimitError('Access forbidden - rotating proxy');
         }
 
-        logger.error(`HTTP GET error for ${url}:`, error.message);
+        logger.error(`HTTP GET error for ${url}: ${error.message}`);
         throw new ProxyError(`HTTP GET failed for ${url}`, error);
       }
     });
@@ -104,7 +104,7 @@ class HttpClient extends BaseProxyClient implements IHttpClient {
           throw new RateLimitError('Access forbidden - rotating proxy');
         }
 
-        logger.error(`HTTP POST error for ${url}:`, error.message);
+        logger.error(`HTTP POST error for ${url}: ${error.message}`);
         throw new ProxyError(`HTTP POST failed for ${url}`, error);
       }
     });
