@@ -7,6 +7,7 @@ import { HtmlExtractor } from './HtmlExtractor';
 import { UrlProcessor } from './UrlProcessor';
 import { SCRAPING_DELAYS, getRandomDelay, RELEVANCE_SCORES, LIMITS } from '../constants/scraping';
 import { saveDebugHtml } from '../utils/debugHtml';
+import { detectErrorPage } from './errorDetection';
 
 class ParfumoScraper {
   private htmlExtractor = new HtmlExtractor();
@@ -159,6 +160,8 @@ class ParfumoScraper {
       await saveDebugHtml(`live_${brandSlug}_${nameSlug}`, html);
 
       const $ = cheerio.load(html);
+
+      detectErrorPage($, fullUrl);
 
       const parsed = this.urlProcessor.parsePerfumeUrl(fullUrl);
       const urlBrand = parsed?.brand ?? '';
