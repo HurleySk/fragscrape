@@ -31,4 +31,19 @@ router.delete('/', asyncHandler(async (req: Request, res: Response) => {
   });
 }));
 
+/**
+ * Purge cached error pages
+ * DELETE /api/cache/error-pages
+ */
+router.delete('/error-pages', asyncHandler(async (_req: Request, res: Response) => {
+  logger.info('Purging cached error pages');
+  const result = database.purgeErrorPages();
+  logger.info(`Purged ${result.purged} error page entries`);
+
+  return sendSuccess(res, {
+    message: 'Error pages purged from cache',
+    ...result,
+  });
+}));
+
 export default router;

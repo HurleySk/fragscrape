@@ -492,6 +492,27 @@ class DatabaseService {
     return { perfumesCleared, searchesCleared, totalCleared: perfumesCleared + searchesCleared };
   }
 
+  purgeErrorPages(): { purged: number } {
+    if (!this.db) throw new DatabaseError('Database not initialized');
+
+    const patterns = [
+      "%page isn't working%",
+      "%page isnt working%",
+      "%page isn%t working%",
+      "%HTTP ERROR%",
+      "%access denied%",
+      "%service unavailable%",
+    ];
+
+    let total = 0;
+    for (const pattern of patterns) {
+      const result = this.db.prepare('DELETE FROM perfumes WHERE brand LIKE ?').run(pattern);
+      total += result.changes;
+    }
+
+    return { purged: total };
+  }
+
   healthCheck(): boolean {
     if (!this.db) return false;
     try {
