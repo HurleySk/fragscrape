@@ -268,6 +268,7 @@ curl http://localhost:3000/api/sync/diff
 | DELETE | `/api/cache?type=perfumes` | Clear perfume cache only |
 | DELETE | `/api/cache?type=search` | Clear search cache only |
 | DELETE | `/api/cache?type=expired` | Clear only expired entries |
+| DELETE | `/api/cache/error-pages` | Purge cached error page entries |
 
 ### System
 
