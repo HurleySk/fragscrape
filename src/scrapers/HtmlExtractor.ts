@@ -58,7 +58,15 @@ export class HtmlExtractor {
    * Extract gender from page content
    */
   extractGender($: cheerio.CheerioAPI): 'male' | 'female' | 'unisex' | undefined {
-    // Strategy 1: Check description text first
+    // Strategy 1: Gender icon in .p_gender_big (most reliable)
+    const genderIcon = $('.p_gender_big i.fa');
+    if (genderIcon.length) {
+      if (genderIcon.hasClass('fa-venus-mars')) return 'unisex';
+      if (genderIcon.hasClass('fa-venus')) return 'female';
+      if (genderIcon.hasClass('fa-mars')) return 'male';
+    }
+
+    // Strategy 2: Check description text
     const description = this.extractText($, 'p, .description, .perfume-description, .main-description, p.desc');
 
     if (description) {
