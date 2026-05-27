@@ -82,7 +82,7 @@ export class HtmlExtractor {
       }
     }
 
-    // Strategy 2: Check ranking/link text
+    // Strategy 3: Check ranking/link text
     const pageText = $('body').text();
     if (/ranked \d+ in unisex perfume/i.test(pageText)) {
       return 'unisex';
@@ -94,7 +94,7 @@ export class HtmlExtractor {
       return 'male';
     }
 
-    // Strategy 3: Legacy selector support
+    // Strategy 4: Legacy selector support
     const genderText = this.extractText($, '.gender, .perfume-gender').toLowerCase();
     if (genderText) {
       if (genderText.includes('women') || genderText.includes('femme') || genderText.includes('her')) {
